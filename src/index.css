@@ -1,0 +1,65 @@
+@import "tailwindcss";
+
+@theme {
+  --font-serif: "Cormorant Garamond", Georgia, serif;
+  --font-sans: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --color-maroon-primary: #8F171B;
+  --color-maroon-dark: #580E11;
+  --color-gold-accent: #EBDCC5;
+  --color-gold-metallic: #D4AF37;
+  --color-gold-dark: #A88220;
+  --color-ivory: #FCF8F1;
+  --color-charcoal: #292321;
+}
+
+/* Global Root Viewport Lock - Prevents Horizontal Overflow & Whitespace */
+html, body {
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+*, ::before, ::after {
+  box-sizing: border-box;
+}
+
+#root {
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+  min-height: 100vh;
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #FCF8F1;
+}
+::-webkit-scrollbar-thumb {
+  background: #D4AF37;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #8F171B;
+}
+
+/* Regal Gold Gradient background helpers */
+.bg-gold-gradient {
+  background: linear-gradient(135deg, #EBDCC5 0%, #D4AF37 50%, #B8860B 100%);
+}
+
+.bg-maroon-gradient {
+  background: linear-gradient(135deg, #8F171B 0%, #580E11 100%);
+}
+
+.text-gold-metallic {
+  background: linear-gradient(135deg, #D4AF37 0%, #F3E5AB 50%, #AA771C 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}

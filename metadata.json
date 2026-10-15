@@ -1,0 +1,6 @@
+{
+  "name": "Natesa Jewellery",
+  "description": "Exquisite luxury Indian heritage jewellery - Gold, Silver, Antiques & Fine Collections since generations.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

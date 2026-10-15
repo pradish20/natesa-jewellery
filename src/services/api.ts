@@ -1,0 +1,155 @@
+import { AdminUser, Category, Enquiry, EnvStatus, Order, OrderStatus, Product, RateSettings, SupabaseLiveStatus } from '../types';
+
+async function fetchJSON<T>(url: string, options?: RequestInit): Promise<T> {
+  const response = await fetch(url, {
+    headers: { 'Content-Type': 'application/json' },
+    ...options
+  });
+  if (!response.ok) {
+    let errorMsg = `API Error [${response.status}]`;
+    try {
+      const errorData = await response.json();
+      if (errorData.error) errorMsg = errorData.error;
+    } catch {
+      const errorText = await response.text();
+      if (errorText) errorMsg = errorText;
+    }
+    throw new Error(errorMsg);
+  }
+  return response.json();
+}
+
+export const api = {
+  getEnvStatus: (): Promise<EnvStatus> => fetchJSON<EnvStatus>('/api/status'),
+
+  // Rates
+  getRates: (): Promise<RateSettings> => fetchJSON<RateSettings>('/api/rates'),
+
+  updateRates: (rates: { gold_22k_rate: number; gold_24k_rate: number; silver_925_rate: number }): Promise<{ success: boolean; rates: RateSettings }> =>
+    fetchJSON('/api/rates', {
+      method: 'POST',
+      body: JSON.stringify(rates)
+    }),
+
+  // Products
+  getProducts: (): Promise<Product[]> => fetchJSON<Product[]>('/api/products'),
+
+  createProduct: (product: Partial<Product>): Promise<Product> =>
+    fetchJSON<Product>('/api/products', {
+      method: 'POST',
+      body: JSON.stringify(product)
+    }),
+
+  updateProduct: (id: string, product: Partial<Product>): Promise<Product> =>
+    fetchJSON<Product>(`/api/products/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(product)
+    }),
+
+  deleteProduct: (id: string): Promise<{ success: boolean; deleted_id: string; deleted_from_supabase?: boolean }> =>
+    fetchJSON(`/api/products/${id}`, {
+      method: 'DELETE'
+    }),
+
+  // Categories
+  getCategories: (): Promise<Category[]> => fetchJSON<Category[]>('/api/categories'),
+
+  createCategory: (category: Partial<Category>): Promise<Category> =>
+    fetchJSON<Category>('/api/categories', {
+      method: 'POST',
+      body: JSON.stringify(category)
+    }),
+
+  updateCategory: (id: string, category: Partial<Category>): Promise<Category> =>
+    fetchJSON<Category>(`/api/categories/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(category)
+    }),
+
+  deleteCategory: (id: string): Promise<{ success: boolean; deleted_id: string; deleted_from_supabase?: boolean }> =>
+    fetchJSON(`/api/categories/${id}`, {
+      method: 'DELETE'
+    }),
+
+  // Orders
+  getOrders: (): Promise<Order[]> => fetchJSON<Order[]>('/api/orders'),
+
+  trackOrder: (query: string): Promise<Order> => fetchJSON<Order>(`/api/orders/${encodeURIComponent(query)}`),
+
+  createOrder: (order: Partial<Order>): Promise<Order> =>
+    fetchJSON<Order>('/api/orders', {
+      method: 'POST',
+      body: JSON.stringify(order)
+    }),
+
+  updateOrderStatus: (
+    id: string,
+    status: OrderStatus,
+    trackingNumber?: string,
+    courierName?: string
+  ): Promise<Order> =>
+    fetchJSON<Order>(`/api/orders/${id}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ status, tracking_number: trackingNumber, courier_name: courierName })
+    }),
+
+  // Enquiries
+  submitEnquiry: (enquiry: Partial<Enquiry>): Promise<{ success: boolean; enquiry: Enquiry }> =>
+    fetchJSON('/api/enquiries', {
+      method: 'POST',
+      body: JSON.stringify(enquiry)
+    }),
+
+  // File Upload
+  uploadImage: (imageData: string): Promise<{ url: string; cloud_name: string; status: string }> =>
+    fetchJSON('/api/upload', {
+      method: 'POST',
+      body: JSON.stringify({ image: imageData })
+    }),
+
+  // Admin Auth & Users in Supabase
+  adminLogin: (credentials: { email?: string; password?: string; pin?: string }): Promise<{
+    success: boolean;
+    user: AdminUser;
+    source: string;
+  }> =>
+    fetchJSON('/api/admin/login', {
+      method: 'POST',
+      body: JSON.stringify(credentials)
+    }),
+
+  getAdminUsers: (): Promise<AdminUser[]> => fetchJSON<AdminUser[]>('/api/admin/users'),
+
+  saveAdminUser: (adminData: {
+    email: string;
+    password: string;
+    name?: string;
+    role?: string;
+  }): Promise<{ success: boolean; user: AdminUser; stored_in_supabase: boolean }> =>
+    fetchJSON('/api/admin/users', {
+      method: 'POST',
+      body: JSON.stringify(adminData)
+    }),
+
+  // Supabase Status, Config & Migration
+  getSupabaseStatus: (): Promise<SupabaseLiveStatus> => fetchJSON<SupabaseLiveStatus>('/api/supabase/status'),
+
+  saveSupabaseConfig: (config: {
+    url: string;
+    key: string;
+  }): Promise<{ success: boolean; message: string; url: string }> =>
+    fetchJSON('/api/supabase/config', {
+      method: 'POST',
+      body: JSON.stringify(config)
+    }),
+
+  seedSupabase: (): Promise<{ success: boolean; details: any; error?: string }> =>
+    fetchJSON('/api/supabase/seed', {
+      method: 'POST'
+    }),
+
+  getSupabaseSchema: async (): Promise<string> => {
+    const res = await fetch('/api/supabase/schema');
+    return res.text();
+  }
+};
