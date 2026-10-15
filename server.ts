@@ -1377,12 +1377,26 @@ app.post('/api/upload', async (req: Request, res: Response) => {
   });
 });
 
-// ---------------- FEATURED HERO SLIDES ROUTES ----------------
-app.get('/api/slides', (req: Request, res: Response) => {
+// ---------------- FEATURED HERO SLIDES (FEATURE IMAGES) IN SUPABASE & LOCAL ----------------
+app.get('/api/slides', async (req: Request, res: Response) => {
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('featured_slides')
+        .select('*')
+        .order('display_order', { ascending: true });
+      if (!error && data && data.length > 0) {
+        currentSlides = data as FeaturedSlide[];
+        return res.json(data);
+      }
+    } catch (e) {
+      console.warn('Supabase slides fetch failed, using local cache:', e);
+    }
+  }
   res.json(currentSlides);
 });
 
-app.post('/api/slides', (req: Request, res: Response) => {
+app.post('/api/slides', async (req: Request, res: Response) => {
   const { title, subtitle, badge, image_url, category_slug, cta_text, display_order, is_active } = req.body;
   if (!image_url || !title) {
     return res.status(400).json({ error: 'Image URL and Title are required' });
@@ -1402,10 +1416,21 @@ app.post('/api/slides', (req: Request, res: Response) => {
 
   currentSlides.push(newSlide);
   saveFeaturedSlides(currentSlides);
-  res.status(201).json(newSlide);
+
+  let savedInSupabase = false;
+  if (supabase) {
+    try {
+      const { error } = await supabase.from('featured_slides').insert([newSlide]);
+      if (!error) savedInSupabase = true;
+    } catch (e) {
+      console.error('Supabase slide insert error:', e);
+    }
+  }
+
+  res.status(201).json({ ...newSlide, saved_in_supabase: savedInSupabase });
 });
 
-app.put('/api/slides/:id', (req: Request, res: Response) => {
+app.put('/api/slides/:id', async (req: Request, res: Response) => {
   const { id } = req.params;
   const index = currentSlides.findIndex(s => s.id === id);
   if (index === -1) {
@@ -1417,14 +1442,39 @@ app.put('/api/slides/:id', (req: Request, res: Response) => {
     ...req.body
   };
   saveFeaturedSlides(currentSlides);
-  res.json(currentSlides[index]);
+
+  let savedInSupabase = false;
+  if (supabase) {
+    try {
+      const { error } = await supabase
+        .from('featured_slides')
+        .update(req.body)
+        .eq('id', id);
+      if (!error) savedInSupabase = true;
+    } catch (e) {
+      console.error('Supabase slide update error:', e);
+    }
+  }
+
+  res.json({ ...currentSlides[index], saved_in_supabase: savedInSupabase });
 });
 
-app.delete('/api/slides/:id', (req: Request, res: Response) => {
+app.delete('/api/slides/:id', async (req: Request, res: Response) => {
   const { id } = req.params;
   currentSlides = currentSlides.filter(s => s.id !== id);
   saveFeaturedSlides(currentSlides);
-  res.json({ success: true, deleted_id: id });
+
+  let deletedFromSupabase = false;
+  if (supabase) {
+    try {
+      const { error } = await supabase.from('featured_slides').delete().eq('id', id);
+      if (!error) deletedFromSupabase = true;
+    } catch (e) {
+      console.error('Supabase slide delete error:', e);
+    }
+  }
+
+  res.json({ success: true, deleted_id: id, deleted_from_supabase: deletedFromSupabase });
 });
 
 // ---------------- STORE CONTACT & ADDRESS SETTINGS ROUTES ----------------
