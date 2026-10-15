@@ -1,4 +1,4 @@
-import { Branch, Category, Product, RateSettings } from '../types';
+import { Branch, Category, FeaturedSlide, Product, RateSettings, StoreContactSettings } from '../types';
 
 export const INITIAL_RATES: RateSettings = {
   gold_22k_rate: 6720,
@@ -6,6 +6,64 @@ export const INITIAL_RATES: RateSettings = {
   silver_925_rate: 94,
   updated_at: new Date().toISOString()
 };
+
+export const INITIAL_STORE_CONTACT: StoreContactSettings = {
+  phone_primary: '+91 94432 53072',
+  phone_secondary: '+91 99444 00666',
+  phone_whatsapp: '+91 94432 53072',
+  email: 'natesajewellery@gmail.com',
+  main_branch_address: 'Near Old Bus Stand, Gandhi Road, Main Bazaar, Krishnagiri, Tamil Nadu — 635001',
+  second_branch_address: 'Bazaar Street, Opposite Town Hall, Near Gandhi Statue, Dharmapuri, Tamil Nadu — 636701',
+  opening_hours: 'Daily: 9:30 AM – 9:00 PM',
+  announcement_text: 'Main Branch: Krishnagiri • Live Gold & Silver Rates Updated Daily • 100% BIS 916 Hallmarked'
+};
+
+export const INITIAL_FEATURED_SLIDES: FeaturedSlide[] = [
+  {
+    id: 'slide-1',
+    title: 'Royal Kasu & Mango Haram',
+    subtitle: 'Signature bridal masterpiece with custom weight options and zero hidden charges.',
+    badge: 'Signature Bridal Masterpiece',
+    image_url: 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?auto=format&fit=crop&w=1200&q=80',
+    category_slug: 'gold-necklaces-malas',
+    cta_text: 'View Gold Necklaces & Malas',
+    display_order: 1,
+    is_active: true
+  },
+  {
+    id: 'slide-2',
+    title: 'Goddess Lakshmi Divine Temple Kada',
+    subtitle: 'Heavy handcrafted 22K gold temple kada with 3D Lakshmi motif and sacred elephants.',
+    badge: 'Heritage Temple Gold',
+    image_url: 'https://images.unsplash.com/photo-1611591475197-e81816e88514?auto=format&fit=crop&w=1200&q=80',
+    category_slug: 'temple-kadas-bangles',
+    cta_text: 'Explore Temple Kadas',
+    display_order: 2,
+    is_active: true
+  },
+  {
+    id: 'slide-3',
+    title: 'Guttapusalu Antique Ruby Jhumkas',
+    subtitle: 'Royal South Indian antique finish jhumkas adorned with natural pearls and ruby drops.',
+    badge: 'Handcrafted Antique Jewellery',
+    image_url: 'https://images.unsplash.com/photo-1630019852942-f89202989a59?auto=format&fit=crop&w=1200&q=80',
+    category_slug: 'antique-jhumkas-studs',
+    cta_text: 'View Antique Earrings',
+    display_order: 3,
+    is_active: true
+  },
+  {
+    id: 'slide-4',
+    title: 'Pure 92.5 Sterling Silver Kolusu',
+    subtitle: 'Traditional bridal anklets, pooja silver lamps, and exquisite silver waist chains.',
+    badge: 'Certified 92.5 Fine Silver',
+    image_url: 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?auto=format&fit=crop&w=1200&q=80',
+    category_slug: 'silver-kolusu-anklets',
+    cta_text: 'Explore Silver Collection',
+    display_order: 4,
+    is_active: true
+  }
+];
 
 export const INITIAL_BRANCHES: Branch[] = [
   {

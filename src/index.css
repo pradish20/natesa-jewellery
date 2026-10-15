@@ -1,7 +1,8 @@
 @import "tailwindcss";
 
 @theme {
-  --font-serif: "Cormorant Garamond", Georgia, serif;
+  --font-serif: "Playfair Display", "Cormorant Garamond", Georgia, serif;
+  --font-display: "Playfair Display", Georgia, serif;
   --font-sans: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --color-maroon-primary: #8F171B;
   --color-maroon-dark: #580E11;

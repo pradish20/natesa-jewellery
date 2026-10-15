@@ -21,8 +21,8 @@ import { ContactView } from './views/ContactView';
 import { OrderTrackingView } from './views/OrderTrackingView';
 import { AdminView } from './views/AdminView';
 
-import { CartItem, Category, Order, Product, RateSettings } from './types';
-import { INITIAL_CATEGORIES, INITIAL_PRODUCTS, INITIAL_RATES } from './data/initialData';
+import { CartItem, Category, FeaturedSlide, Order, Product, RateSettings, StoreContactSettings } from './types';
+import { INITIAL_CATEGORIES, INITIAL_FEATURED_SLIDES, INITIAL_PRODUCTS, INITIAL_RATES, INITIAL_STORE_CONTACT } from './data/initialData';
 import { calculatePriceBreakdown } from './utils/pricing';
 import { api } from './services/api';
 
@@ -47,6 +47,8 @@ export default function App() {
   const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
   const [categories, setCategories] = useState<Category[]>(INITIAL_CATEGORIES);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [slides, setSlides] = useState<FeaturedSlide[]>(INITIAL_FEATURED_SLIDES);
+  const [storeContact, setStoreContact] = useState<StoreContactSettings>(INITIAL_STORE_CONTACT);
 
   // Drawers & Modals
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -96,17 +98,25 @@ export default function App() {
   // Initial Data Fetching from Server
   const refreshAllData = async () => {
     try {
-      const [fetchedRates, fetchedProducts, fetchedCategories, fetchedOrders] = await Promise.all([
+      const [fetchedRates, fetchedProducts, fetchedCategories, fetchedOrders, fetchedSlides, fetchedContact] = await Promise.all([
         api.getRates().catch(() => INITIAL_RATES),
         api.getProducts().catch(() => INITIAL_PRODUCTS),
         api.getCategories().catch(() => INITIAL_CATEGORIES),
-        api.getOrders().catch(() => [])
+        api.getOrders().catch(() => []),
+        api.getSlides().catch(() => INITIAL_FEATURED_SLIDES),
+        api.getStoreContact().catch(() => INITIAL_STORE_CONTACT)
       ]);
 
       setRates(fetchedRates);
       setProducts(fetchedProducts);
       setCategories(fetchedCategories);
       setOrders(fetchedOrders);
+      if (fetchedSlides && fetchedSlides.length > 0) {
+        setSlides(fetchedSlides);
+      }
+      if (fetchedContact) {
+        setStoreContact(fetchedContact);
+      }
     } catch (err) {
       console.error('Error syncing store data:', err);
     }
@@ -264,6 +274,7 @@ export default function App() {
       {/* Top Header Navigation */}
       <Header
         rates={rates}
+        storeContact={storeContact}
         cartCount={cartItems.reduce((acc, item) => acc + item.quantity, 0)}
         wishlistCount={wishlist.length}
         activeTab={activeTab}
@@ -281,6 +292,7 @@ export default function App() {
             categories={categories}
             rates={rates}
             wishlist={wishlist}
+            slides={slides}
             onToggleWishlist={handleToggleWishlist}
             onAddToCart={handleAddToCart}
             onSelectProduct={(p) => setSelectedProduct(p)}
@@ -329,7 +341,7 @@ export default function App() {
 
         {activeTab === 'about' && <AboutView />}
 
-        {activeTab === 'contact' && <ContactView />}
+        {activeTab === 'contact' && <ContactView storeContact={storeContact} />}
 
         {activeTab === 'tracking' && (
           <OrderTrackingView
@@ -343,6 +355,8 @@ export default function App() {
             categories={categories}
             orders={orders}
             rates={rates}
+            slides={slides}
+            storeContact={storeContact}
             onRefreshData={refreshAllData}
             onExitAdmin={() => handleNavigateTab('home')}
           />
@@ -351,6 +365,7 @@ export default function App() {
 
       {/* Footer */}
       <Footer
+        storeContact={storeContact}
         onNavigateTab={handleNavigateTab}
       />
 

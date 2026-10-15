@@ -2,17 +2,24 @@ import React, { useState, useEffect } from 'react';
 import {
   Lock, KeyRound, Server, Cloud, Database, LayoutDashboard, Package, Folders,
   ShoppingBag, Settings, Plus, Edit, Trash2, CheckCircle2, AlertCircle, RefreshCw, Upload,
-  Copy, Check, ShieldCheck, UserCheck, ExternalLink, ArrowRight, Image as ImageIcon, Sparkles, Link2
+  Copy, Check, ShieldCheck, UserCheck, ExternalLink, ArrowRight, Image as ImageIcon, Sparkles, Link2,
+  MapPin, Phone, Eye, EyeOff, Clock
 } from 'lucide-react';
-import { AdminUser, Category, CloudinaryConfig, CloudinaryLiveStatus, EnvStatus, Order, OrderStatus, Product, RateSettings, SupabaseLiveStatus } from '../types';
+import {
+  AdminUser, Category, CloudinaryConfig, CloudinaryLiveStatus, EnvStatus,
+  FeaturedSlide, Order, OrderStatus, Product, RateSettings, StoreContactSettings, SupabaseLiveStatus
+} from '../types';
 import { api } from '../services/api';
 import { formatINR } from '../utils/pricing';
+import { INITIAL_FEATURED_SLIDES, INITIAL_STORE_CONTACT } from '../data/initialData';
 
 interface AdminViewProps {
   products: Product[];
   categories: Category[];
   orders: Order[];
   rates: RateSettings;
+  slides?: FeaturedSlide[];
+  storeContact?: StoreContactSettings;
   onRefreshData: () => void;
   onExitAdmin?: () => void;
 }
@@ -22,6 +29,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
   categories,
   orders,
   rates,
+  slides,
+  storeContact,
   onRefreshData,
   onExitAdmin
 }) => {
@@ -71,7 +80,43 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [loginLoading, setLoginLoading] = useState<boolean>(false);
 
   // Active Admin Tab
-  const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'categories' | 'orders' | 'rates' | 'supabase' | 'cloudinary'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'categories' | 'slides' | 'store_contact' | 'orders' | 'rates' | 'supabase' | 'cloudinary'>('overview');
+
+  // Featured Slides State
+  const [slidesList, setSlidesList] = useState<FeaturedSlide[]>(slides || INITIAL_FEATURED_SLIDES);
+  const [showSlideModal, setShowSlideModal] = useState<boolean>(false);
+  const [editingSlide, setEditingSlide] = useState<Partial<FeaturedSlide> | null>(null);
+  const [slideSaving, setSlideSaving] = useState<boolean>(false);
+  const [slideSaveMsg, setSlideSaveMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [slideImageUploadLoading, setSlideImageUploadLoading] = useState<boolean>(false);
+
+  // Store Contact & Address State
+  const [contactForm, setContactForm] = useState<StoreContactSettings>(storeContact || INITIAL_STORE_CONTACT);
+  const [contactSaving, setContactSaving] = useState<boolean>(false);
+  const [contactSaveMsg, setContactSaveMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Sync state if props change or on initial mount
+  useEffect(() => {
+    if (slides && slides.length > 0) {
+      setSlidesList(slides);
+    }
+  }, [slides]);
+
+  useEffect(() => {
+    if (storeContact) {
+      setContactForm(storeContact);
+    }
+  }, [storeContact]);
+
+  useEffect(() => {
+    api.getSlides().then((res) => {
+      if (res && res.length > 0) setSlidesList(res);
+    }).catch(() => {});
+
+    api.getStoreContact().then((res) => {
+      if (res) setContactForm(res);
+    }).catch(() => {});
+  }, []);
 
   // Vercel / Env & Supabase Live Status State
   const [envStatus, setEnvStatus] = useState<EnvStatus | null>(null);
@@ -170,13 +215,41 @@ export const AdminView: React.FC<AdminViewProps> = ({
     }
   };
 
+  const fetchSlides = async () => {
+    try {
+      const data = await api.getSlides();
+      if (data && data.length > 0) setSlidesList(data);
+    } catch (e) {
+      console.warn('Could not load slides:', e);
+    }
+  };
+
+  const fetchStoreContact = async () => {
+    try {
+      const data = await api.getStoreContact();
+      if (data) setContactForm(data);
+    } catch (e) {
+      console.warn('Could not load contact info:', e);
+    }
+  };
+
   useEffect(() => {
     fetchStatusAndSupabase();
     loadSqlSchema();
+    fetchSlides();
+    fetchStoreContact();
     if (isAuthenticated) {
       fetchAdminUsers();
     }
   }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (slides && slides.length > 0) setSlidesList(slides);
+  }, [slides]);
+
+  useEffect(() => {
+    if (storeContact) setContactForm(storeContact);
+  }, [storeContact]);
 
   useEffect(() => {
     setRateForm({
@@ -312,6 +385,121 @@ export const AdminView: React.FC<AdminViewProps> = ({
       navigator.clipboard.writeText(sqlSchema);
       setSqlCopied(true);
       setTimeout(() => setSqlCopied(false), 3000);
+    }
+  };
+
+  // Featured Slides Handlers
+  const handleOpenAddSlide = () => {
+    setEditingSlide({
+      title: '',
+      subtitle: '',
+      badge: 'Heritage Collection',
+      image_url: '',
+      category_slug: categories[0]?.slug || 'gold-necklaces-malas',
+      cta_text: 'Explore Collection',
+      display_order: slidesList.length + 1,
+      is_active: true
+    });
+    setSlideSaveMsg(null);
+    setShowSlideModal(true);
+  };
+
+  const handleOpenEditSlide = (slide: FeaturedSlide) => {
+    setEditingSlide({ ...slide });
+    setSlideSaveMsg(null);
+    setShowSlideModal(true);
+  };
+
+  const handleSaveSlide = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingSlide?.image_url || !editingSlide?.title) {
+      setSlideSaveMsg({ type: 'error', text: 'Slide Title and Image URL are required.' });
+      return;
+    }
+
+    setSlideSaving(true);
+    setSlideSaveMsg(null);
+
+    try {
+      if (editingSlide.id) {
+        const updated = await api.updateSlide(editingSlide.id, editingSlide);
+        setSlidesList(prev => prev.map(s => (s.id === updated.id ? updated : s)));
+        setSlideSaveMsg({ type: 'success', text: 'Slide updated successfully!' });
+      } else {
+        const created = await api.createSlide(editingSlide);
+        setSlidesList(prev => [...prev, created]);
+        setSlideSaveMsg({ type: 'success', text: 'New feature slide added successfully!' });
+      }
+      onRefreshData();
+      setTimeout(() => setShowSlideModal(false), 800);
+    } catch (err: any) {
+      setSlideSaveMsg({ type: 'error', text: err.message || 'Failed to save slide.' });
+    } finally {
+      setSlideSaving(false);
+    }
+  };
+
+  const handleDeleteSlide = async (id: string) => {
+    if (!window.confirm('Are you sure you want to delete this feature slide?')) return;
+    try {
+      await api.deleteSlide(id);
+      setSlidesList(prev => prev.filter(s => s.id !== id));
+      onRefreshData();
+    } catch (err: any) {
+      alert('Failed to delete slide: ' + err.message);
+    }
+  };
+
+  const handleToggleSlideActive = async (slide: FeaturedSlide) => {
+    try {
+      const updated = await api.updateSlide(slide.id, { is_active: !slide.is_active });
+      setSlidesList(prev => prev.map(s => (s.id === updated.id ? updated : s)));
+      onRefreshData();
+    } catch (err: any) {
+      alert('Failed to toggle slide status: ' + err.message);
+    }
+  };
+
+  const handleSlideImageUpload = async (file: File) => {
+    setSlideImageUploadLoading(true);
+    try {
+      const reader = new FileReader();
+      reader.onload = async () => {
+        try {
+          const res = await api.uploadImage(reader.result as string);
+          setEditingSlide(prev => ({
+            ...prev,
+            image_url: res.url
+          }));
+        } catch (e: any) {
+          alert('Failed to upload image: ' + (e.message || 'Unknown error'));
+        } finally {
+          setSlideImageUploadLoading(false);
+        }
+      };
+      reader.readAsDataURL(file);
+    } catch (err: any) {
+      alert('Error reading image: ' + err.message);
+      setSlideImageUploadLoading(false);
+    }
+  };
+
+  // Store Contact Settings Handler
+  const handleSaveStoreContact = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setContactSaving(true);
+    setContactSaveMsg(null);
+    try {
+      const res = await api.updateStoreContact(contactForm);
+      if (res.success) {
+        setContactSaveMsg({ type: 'success', text: 'Store address & phone numbers successfully updated across the website!' });
+        onRefreshData();
+        setTimeout(() => setContactSaveMsg(null), 5000);
+      }
+    } catch (err: any) {
+      setContactSaveMsg({ type: 'error', text: err.message || 'Failed to save store contact details.' });
+    } finally {
+      setContactSaving(false);
     }
   };
 
@@ -631,6 +819,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
           { id: 'overview', label: 'Overview Metrics', icon: LayoutDashboard },
           { id: 'products', label: 'Products Manager', icon: Package },
           { id: 'categories', label: 'Categories Manager', icon: Folders },
+          { id: 'slides', label: 'Feature Images', icon: ImageIcon },
+          { id: 'store_contact', label: 'Store Address & Phone', icon: MapPin },
           { id: 'orders', label: 'Orders & Courier', icon: ShoppingBag },
           { id: 'rates', label: 'Live Rates', icon: Settings },
           { id: 'supabase', label: 'Supabase & Database', icon: Database },
@@ -724,6 +914,104 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   ))}
                 </tbody>
               </table>
+            </div>
+          </div>
+
+          {/* Quick Management Cards: Feature Images & Store Address/Phone */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full">
+            {/* 1. Feature Images Showcase Card */}
+            <div className="bg-white p-5 rounded-2xl border border-[#D4AF37]/40 shadow-xs space-y-4 flex flex-col justify-between">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="p-2 rounded-lg bg-[#8F171B]/10 text-[#8F171B]">
+                      <ImageIcon className="w-5 h-5 text-[#8F171B]" />
+                    </div>
+                    <div>
+                      <h4 className="font-serif font-bold text-base text-[#292321]">Homepage Feature Images</h4>
+                      <p className="text-[11px] text-gray-500">Auto-sliding hero banner with 4.2s smooth transitions</p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">
+                    {slidesList.filter(s => s.is_active).length} Active in Slider
+                  </span>
+                </div>
+
+                {/* Thumbnails preview */}
+                <div className="grid grid-cols-3 gap-2">
+                  {slidesList.slice(0, 3).map((sl) => (
+                    <div key={sl.id} className="relative aspect-16/10 rounded-lg overflow-hidden border border-[#D4AF37]/30 bg-black/10 group">
+                      <img src={sl.image_url} alt={sl.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+                      <span className="absolute bottom-1 left-1.5 text-[9px] text-white font-semibold line-clamp-1">
+                        {sl.title}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between gap-3 pt-3 border-t border-gray-100">
+                <button
+                  onClick={handleOpenAddSlide}
+                  className="bg-[#8F171B] hover:bg-[#580E11] text-white px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer transition-all"
+                >
+                  <Plus className="w-4 h-4 text-[#D4AF37]" />
+                  <span>Add Feature Image</span>
+                </button>
+                <button
+                  onClick={() => setActiveTab('slides')}
+                  className="text-xs font-semibold text-[#8F171B] hover:text-[#580E11] underline cursor-pointer"
+                >
+                  Manage All Slides ({slidesList.length}) →
+                </button>
+              </div>
+            </div>
+
+            {/* 2. Store Address & Phone Card */}
+            <div className="bg-white p-5 rounded-2xl border border-[#D4AF37]/40 shadow-xs space-y-4 flex flex-col justify-between">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="p-2 rounded-lg bg-[#8F171B]/10 text-[#8F171B]">
+                      <MapPin className="w-5 h-5 text-[#8F171B]" />
+                    </div>
+                    <div>
+                      <h4 className="font-serif font-bold text-base text-[#292321]">Store Address & Contact Info</h4>
+                      <p className="text-[11px] text-gray-500">Live showroom locations and customer phone numbers</p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-bold bg-[#EBDCC5] text-[#8F171B] px-2 py-0.5 rounded-full">
+                    2 Showrooms
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div className="p-2.5 rounded-lg bg-[#FCF8F1] border border-[#D4AF37]/30 space-y-1">
+                    <span className="text-[10px] font-bold uppercase text-[#8F171B] block">Main (Krishnagiri)</span>
+                    <p className="text-gray-600 line-clamp-2 text-[11px] leading-relaxed">{contactForm.main_branch_address}</p>
+                    <p className="font-mono font-semibold text-[#292321] text-[11px]">{contactForm.phone_primary}</p>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-[#FCF8F1] border border-[#D4AF37]/30 space-y-1">
+                    <span className="text-[10px] font-bold uppercase text-[#8F171B] block">Second (Dharmapuri)</span>
+                    <p className="text-gray-600 line-clamp-2 text-[11px] leading-relaxed">{contactForm.second_branch_address}</p>
+                    <p className="font-mono font-semibold text-[#292321] text-[11px]">{contactForm.phone_secondary || contactForm.phone_primary}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between gap-3 pt-3 border-t border-gray-100">
+                <button
+                  onClick={() => setActiveTab('store_contact')}
+                  className="bg-[#292321] hover:bg-black text-[#EBDCC5] px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer transition-all"
+                >
+                  <Edit className="w-3.5 h-3.5 text-[#D4AF37]" />
+                  <span>Edit Address & Phone Numbers</span>
+                </button>
+                <span className="text-[11px] text-gray-400 font-mono">
+                  {contactForm.opening_hours}
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -861,6 +1149,342 @@ export const AdminView: React.FC<AdminViewProps> = ({
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* TAB: FEATURE IMAGES & SLIDES */}
+      {activeTab === 'slides' && (
+        <div className="space-y-6 animate-in fade-in duration-200 w-full">
+          {/* Header Action Bar */}
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white p-4 sm:p-5 rounded-2xl border border-[#D4AF37]/40 shadow-xs">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold text-[#8F171B] uppercase tracking-wider">HOMEPAGE HERO SHOWCASE</span>
+                <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">
+                  Auto-sliding • 4.5s
+                </span>
+              </div>
+              <h3 className="font-serif text-lg sm:text-xl font-bold text-[#292321] mt-0.5">
+                Featured Hero Banners & Slider Images
+              </h3>
+              <p className="text-xs text-gray-500">
+                Add, reorder, or edit featured collection slides displayed in the auto-sliding hero banner on your homepage.
+              </p>
+            </div>
+
+            <button
+              onClick={handleOpenAddSlide}
+              className="bg-[#8F171B] hover:bg-[#580E11] text-white px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 shadow-xs cursor-pointer transition-all shrink-0"
+            >
+              <Plus className="w-4 h-4 text-[#D4AF37]" />
+              <span>Add Feature Image</span>
+            </button>
+          </div>
+
+          {/* Slides Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {slidesList.map((slide, idx) => (
+              <div
+                key={slide.id}
+                className={`bg-white rounded-2xl border transition-all overflow-hidden flex flex-col justify-between shadow-xs ${
+                  slide.is_active ? 'border-[#D4AF37]/50' : 'border-gray-200 opacity-70'
+                }`}
+              >
+                <div>
+                  <div className="relative aspect-16/10 bg-gray-900 overflow-hidden group">
+                    <img
+                      src={slide.image_url}
+                      alt={slide.title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      referrerPolicy="no-referrer"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                    
+                    <div className="absolute top-3 left-3 flex items-center gap-1.5">
+                      <span className="bg-black/60 backdrop-blur-xs text-[#D4AF37] text-[10px] font-mono px-2 py-0.5 rounded-md font-bold">
+                        #{idx + 1}
+                      </span>
+                      {slide.badge && (
+                        <span className="bg-[#8F171B] text-white text-[10px] px-2 py-0.5 rounded-md font-semibold truncate max-w-[160px]">
+                          {slide.badge}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="absolute top-3 right-3">
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                        slide.is_active ? 'bg-emerald-500 text-white' : 'bg-gray-500 text-white'
+                      }`}>
+                        {slide.is_active ? 'Active in Slider' : 'Inactive'}
+                      </span>
+                    </div>
+
+                    <div className="absolute bottom-3 left-3 right-3">
+                      <h4 className="font-serif font-bold text-white text-base sm:text-lg line-clamp-1">
+                        {slide.title}
+                      </h4>
+                      <p className="text-gray-300 text-xs line-clamp-1 font-light">
+                        {slide.subtitle}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="p-4 space-y-2 text-xs">
+                    <div className="flex justify-between items-center text-gray-500 text-[11px]">
+                      <span>Target Category:</span>
+                      <span className="font-mono font-semibold text-[#8F171B]">{slide.category_slug || 'General'}</span>
+                    </div>
+                    {slide.cta_text && (
+                      <div className="flex justify-between items-center text-gray-500 text-[11px]">
+                        <span>Button CTA:</span>
+                        <span className="text-[#292321] font-semibold">{slide.cta_text}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="p-4 pt-0 border-t border-gray-100 flex items-center justify-between gap-2 mt-2">
+                  <button
+                    onClick={() => handleToggleSlideActive(slide)}
+                    className={`text-xs px-2.5 py-1.5 rounded-lg font-semibold flex items-center gap-1 cursor-pointer transition-colors ${
+                      slide.is_active
+                        ? 'bg-amber-50 text-amber-800 hover:bg-amber-100'
+                        : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+                    }`}
+                  >
+                    {slide.is_active ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    <span>{slide.is_active ? 'Pause' : 'Activate'}</span>
+                  </button>
+
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => handleOpenEditSlide(slide)}
+                      className="p-1.5 text-gray-600 hover:text-[#8F171B] hover:bg-gray-100 rounded-md transition-colors cursor-pointer"
+                      title="Edit slide"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteSlide(slide.id)}
+                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors cursor-pointer"
+                      title="Delete slide"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* TAB: STORE ADDRESS & PHONE NUMBERS */}
+      {activeTab === 'store_contact' && (
+        <div className="space-y-6 animate-in fade-in duration-200 w-full">
+          {/* Header */}
+          <div className="bg-white p-5 rounded-2xl border border-[#D4AF37]/40 shadow-xs space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold text-[#8F171B] uppercase tracking-wider">SHOWROOM & CONTACT MANAGEMENT</span>
+            </div>
+            <h3 className="font-serif text-lg sm:text-xl font-bold text-[#292321]">
+              Store Address, Phone Numbers & Business Hours
+            </h3>
+            <p className="text-xs text-gray-500">
+              Update showroom addresses, contact phone numbers, support email, and header announcement across the entire storefront.
+            </p>
+          </div>
+
+          {contactSaveMsg && (
+            <div className={`p-4 rounded-xl text-xs flex items-center gap-2 ${
+              contactSaveMsg.type === 'error'
+                ? 'bg-red-50 text-red-800 border border-red-200'
+                : 'bg-emerald-50 text-emerald-800 border border-emerald-200 font-semibold'
+            }`}>
+              {contactSaveMsg.type === 'error' ? <AlertCircle className="w-4 h-4 shrink-0" /> : <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />}
+              <span>{contactSaveMsg.text}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleSaveStoreContact} className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              
+              {/* Card 1: Phone Numbers & WhatsApp */}
+              <div className="bg-white p-5 rounded-2xl border border-[#D4AF37]/40 shadow-xs space-y-4">
+                <div className="flex items-center gap-2 border-b border-gray-100 pb-3">
+                  <Phone className="w-4 h-4 text-[#8F171B]" />
+                  <h4 className="font-serif font-bold text-base text-[#292321]">Phone Numbers & WhatsApp</h4>
+                </div>
+
+                <div className="space-y-3 text-xs">
+                  <div>
+                    <label className="block font-bold text-[#292321] uppercase mb-1">
+                      Primary Phone Number *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="+91 94432 53072"
+                      value={contactForm.phone_primary}
+                      onChange={(e) => setContactForm({ ...contactForm, phone_primary: e.target.value })}
+                      className="w-full bg-[#FCF8F1] border border-[#D4AF37]/50 rounded-xl px-3 py-2 font-mono text-xs font-semibold focus:outline-hidden focus:border-[#8F171B]"
+                    />
+                    <span className="text-[10px] text-gray-500 mt-1 block">Displayed in top header bar, customer call buttons, and checkout receipts.</span>
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-[#292321] uppercase mb-1">
+                      Secondary Phone / Landline
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="+91 99444 00666"
+                      value={contactForm.phone_secondary}
+                      onChange={(e) => setContactForm({ ...contactForm, phone_secondary: e.target.value })}
+                      className="w-full bg-[#FCF8F1] border border-[#D4AF37]/50 rounded-xl px-3 py-2 font-mono text-xs focus:outline-hidden focus:border-[#8F171B]"
+                    />
+                    <span className="text-[10px] text-gray-500 mt-1 block">Additional phone displayed in footer showroom details.</span>
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-[#292321] uppercase mb-1">
+                      WhatsApp Consultation Number *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="+91 94432 53072"
+                      value={contactForm.phone_whatsapp}
+                      onChange={(e) => setContactForm({ ...contactForm, phone_whatsapp: e.target.value })}
+                      className="w-full bg-[#FCF8F1] border border-[#D4AF37]/50 rounded-xl px-3 py-2 font-mono text-xs font-semibold focus:outline-hidden focus:border-[#8F171B]"
+                    />
+                    <span className="text-[10px] text-gray-500 mt-1 block">Used for direct WhatsApp order & custom design consultation chats.</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Card 2: Email & Opening Hours */}
+              <div className="bg-white p-5 rounded-2xl border border-[#D4AF37]/40 shadow-xs space-y-4">
+                <div className="flex items-center gap-2 border-b border-gray-100 pb-3">
+                  <Clock className="w-4 h-4 text-[#8F171B]" />
+                  <h4 className="font-serif font-bold text-base text-[#292321]">Email & Operating Hours</h4>
+                </div>
+
+                <div className="space-y-3 text-xs">
+                  <div>
+                    <label className="block font-bold text-[#292321] uppercase mb-1">
+                      Customer Support Email *
+                    </label>
+                    <input
+                      type="email"
+                      required
+                      placeholder="natesajewellery@gmail.com"
+                      value={contactForm.email}
+                      onChange={(e) => setContactForm({ ...contactForm, email: e.target.value })}
+                      className="w-full bg-[#FCF8F1] border border-[#D4AF37]/50 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-hidden focus:border-[#8F171B]"
+                    />
+                    <span className="text-[10px] text-gray-500 mt-1 block">Shown in website footer and customer order confirmations.</span>
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-[#292321] uppercase mb-1">
+                      Showroom Operating Hours *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Daily: 9:30 AM – 9:00 PM"
+                      value={contactForm.opening_hours}
+                      onChange={(e) => setContactForm({ ...contactForm, opening_hours: e.target.value })}
+                      className="w-full bg-[#FCF8F1] border border-[#D4AF37]/50 rounded-xl px-3 py-2 text-xs focus:outline-hidden focus:border-[#8F171B]"
+                    />
+                    <span className="text-[10px] text-gray-500 mt-1 block">Daily showroom timings shown in footer and contact page.</span>
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-[#292321] uppercase mb-1">
+                      Top Announcement Bar Notice
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Main Branch: Krishnagiri • Live Gold & Silver Rates Updated Daily"
+                      value={contactForm.announcement_text}
+                      onChange={(e) => setContactForm({ ...contactForm, announcement_text: e.target.value })}
+                      className="w-full bg-[#FCF8F1] border border-[#D4AF37]/50 rounded-xl px-3 py-2 text-xs focus:outline-hidden focus:border-[#8F171B]"
+                    />
+                    <span className="text-[10px] text-gray-500 mt-1 block">Marquee announcement text displayed at the very top of all pages.</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Card 3: Main Branch Address (Krishnagiri) */}
+              <div className="bg-white p-5 rounded-2xl border border-[#D4AF37]/40 shadow-xs space-y-4">
+                <div className="flex items-center gap-2 border-b border-gray-100 pb-3">
+                  <MapPin className="w-4 h-4 text-[#8F171B]" />
+                  <h4 className="font-serif font-bold text-base text-[#292321]">Main Showroom Address (Krishnagiri)</h4>
+                </div>
+
+                <div className="space-y-3 text-xs">
+                  <div>
+                    <label className="block font-bold text-[#292321] uppercase mb-1">
+                      Full Physical Address *
+                    </label>
+                    <textarea
+                      rows={3}
+                      required
+                      value={contactForm.main_branch_address}
+                      onChange={(e) => setContactForm({ ...contactForm, main_branch_address: e.target.value })}
+                      className="w-full bg-[#FCF8F1] border border-[#D4AF37]/50 rounded-xl p-3 text-xs leading-relaxed focus:outline-hidden focus:border-[#8F171B]"
+                      placeholder="Near Old Bus Stand, Gandhi Road, Main Bazaar, Krishnagiri, Tamil Nadu — 635001"
+                    />
+                    <span className="text-[10px] text-gray-500 mt-1 block">Primary physical branch address featured in the footer, receipt, and contact view.</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Card 4: Second Branch Address (Dharmapuri) */}
+              <div className="bg-white p-5 rounded-2xl border border-[#D4AF37]/40 shadow-xs space-y-4">
+                <div className="flex items-center gap-2 border-b border-gray-100 pb-3">
+                  <MapPin className="w-4 h-4 text-[#8F171B]" />
+                  <h4 className="font-serif font-bold text-base text-[#292321]">Second Branch Address (Dharmapuri)</h4>
+                </div>
+
+                <div className="space-y-3 text-xs">
+                  <div>
+                    <label className="block font-bold text-[#292321] uppercase mb-1">
+                      Full Physical Address *
+                    </label>
+                    <textarea
+                      rows={3}
+                      required
+                      value={contactForm.second_branch_address}
+                      onChange={(e) => setContactForm({ ...contactForm, second_branch_address: e.target.value })}
+                      className="w-full bg-[#FCF8F1] border border-[#D4AF37]/50 rounded-xl p-3 text-xs leading-relaxed focus:outline-hidden focus:border-[#8F171B]"
+                      placeholder="Bazaar Street, Opposite Town Hall, Near Gandhi Statue, Dharmapuri, Tamil Nadu — 636701"
+                    />
+                    <span className="text-[10px] text-gray-500 mt-1 block">Second branch address featured in the footer and contact view.</span>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Save Button */}
+            <div className="flex justify-end">
+              <button
+                type="submit"
+                disabled={contactSaving}
+                className="bg-[#8F171B] hover:bg-[#580E11] text-white px-6 py-3 rounded-xl font-bold text-sm shadow-md flex items-center gap-2 cursor-pointer transition-all disabled:opacity-50"
+              >
+                {contactSaving ? (
+                  <RefreshCw className="w-4 h-4 animate-spin text-[#D4AF37]" />
+                ) : (
+                  <CheckCircle2 className="w-4 h-4 text-[#D4AF37]" />
+                )}
+                <span>{contactSaving ? 'Saving Changes...' : 'Save Store Address & Contact Settings'}</span>
+              </button>
+            </div>
+          </form>
         </div>
       )}
 
@@ -1982,6 +2606,169 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   className="flex-1 bg-[#8F171B] text-white py-2 rounded font-bold cursor-pointer"
                 >
                   Save Category
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* FEATURED SLIDE MODAL */}
+      {showSlideModal && editingSlide && (
+        <div className="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-[#FCF8F1] rounded-2xl border-2 border-[#D4AF37]/60 max-w-lg w-full p-4 sm:p-6 space-y-4 my-8 shadow-2xl animate-in zoom-in-95 duration-150">
+            <h3 className="font-serif text-xl sm:text-2xl font-bold text-[#8F171B]">
+              {editingSlide.id ? 'Edit Featured Slide' : 'Add New Feature Slide'}
+            </h3>
+
+            {slideSaveMsg && (
+              <div className={`p-3 rounded-xl text-xs flex items-center gap-2 ${
+                slideSaveMsg.type === 'error' ? 'bg-red-50 text-red-800 border border-red-200' : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+              }`}>
+                {slideSaveMsg.type === 'error' ? <AlertCircle className="w-4 h-4 shrink-0" /> : <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />}
+                <span>{slideSaveMsg.text}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveSlide} className="space-y-3 text-xs">
+              <div>
+                <label className="block font-bold text-[#292321] uppercase mb-1">Slide Title *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Royal Kasu & Mango Haram"
+                  value={editingSlide.title || ''}
+                  onChange={(e) => setEditingSlide({ ...editingSlide, title: e.target.value })}
+                  className="w-full bg-white border border-[#D4AF37]/50 rounded-xl px-3 py-2 font-semibold text-xs"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-[#292321] uppercase mb-1">Subtitle / Description</label>
+                <textarea
+                  rows={2}
+                  placeholder="e.g. Signature bridal masterpiece with custom weight options and live rate pricing."
+                  value={editingSlide.subtitle || ''}
+                  onChange={(e) => setEditingSlide({ ...editingSlide, subtitle: e.target.value })}
+                  className="w-full bg-white border border-[#D4AF37]/50 rounded-xl px-3 py-2 text-xs"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-[#292321] uppercase mb-1">Badge / Tagline</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Signature Bridal Masterpiece"
+                    value={editingSlide.badge || ''}
+                    onChange={(e) => setEditingSlide({ ...editingSlide, badge: e.target.value })}
+                    className="w-full bg-white border border-[#D4AF37]/50 rounded-xl px-3 py-2 text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-[#292321] uppercase mb-1">Target Category *</label>
+                  <select
+                    value={editingSlide.category_slug || ''}
+                    onChange={(e) => setEditingSlide({ ...editingSlide, category_slug: e.target.value })}
+                    className="w-full bg-white border border-[#D4AF37]/50 rounded-xl px-3 py-2 font-semibold text-xs"
+                  >
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.slug}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-[#292321] uppercase mb-1">Button CTA Text</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. View Gold Necklaces & Malas"
+                    value={editingSlide.cta_text || ''}
+                    onChange={(e) => setEditingSlide({ ...editingSlide, cta_text: e.target.value })}
+                    className="w-full bg-white border border-[#D4AF37]/50 rounded-xl px-3 py-2 text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-[#292321] uppercase mb-1">Display Order</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={editingSlide.display_order || 1}
+                    onChange={(e) => setEditingSlide({ ...editingSlide, display_order: parseInt(e.target.value) || 1 })}
+                    className="w-full bg-white border border-[#D4AF37]/50 rounded-xl px-3 py-2 text-xs"
+                  />
+                </div>
+              </div>
+
+              {/* Image URL with Cloudinary Upload Option */}
+              <div className="space-y-1.5 pt-1">
+                <label className="block font-bold text-[#292321] uppercase mb-1">Feature Image *</label>
+                <div className="flex gap-2">
+                  <input
+                    type="url"
+                    required
+                    placeholder="https://images.unsplash.com/... or Cloudinary URL"
+                    value={editingSlide.image_url || ''}
+                    onChange={(e) => setEditingSlide({ ...editingSlide, image_url: e.target.value })}
+                    className="flex-1 bg-white border border-[#D4AF37]/50 rounded-xl px-3 py-2 text-xs font-mono"
+                  />
+                  <label className="bg-[#292321] hover:bg-black text-[#D4AF37] px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer whitespace-nowrap shadow-xs">
+                    {slideImageUploadLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                    <span>{slideImageUploadLoading ? 'Uploading...' : 'Upload Image'}</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleSlideImageUpload(file);
+                      }}
+                    />
+                  </label>
+                </div>
+                {editingSlide.image_url && (
+                  <div className="mt-2 relative w-full h-32 rounded-xl overflow-hidden border border-[#D4AF37]/40 bg-gray-900">
+                    <img
+                      src={editingSlide.image_url}
+                      alt="Slide preview"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="slideActive"
+                  checked={editingSlide.is_active !== false}
+                  onChange={(e) => setEditingSlide({ ...editingSlide, is_active: e.target.checked })}
+                  className="rounded text-[#8F171B] focus:ring-[#8F171B] cursor-pointer"
+                />
+                <label htmlFor="slideActive" className="text-xs text-gray-700 cursor-pointer font-medium">
+                  Active in Hero Slider (will auto-slide on homepage)
+                </label>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t">
+                <button
+                  type="button"
+                  onClick={() => setShowSlideModal(false)}
+                  className="px-4 py-2 border rounded-xl font-bold text-xs hover:bg-gray-100 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={slideSaving}
+                  className="px-5 py-2 bg-[#8F171B] hover:bg-[#580E11] text-white rounded-xl font-bold text-xs shadow-xs cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  {slideSaving && <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#D4AF37]" />}
+                  <span>{slideSaving ? 'Saving...' : 'Save Feature Slide'}</span>
                 </button>
               </div>
             </form>

@@ -1,7 +1,7 @@
 import React from 'react';
 import { HeroBanner } from '../components/HeroBanner';
 import { ProductCard } from '../components/ProductCard';
-import { Category, Product, RateSettings } from '../types';
+import { Category, FeaturedSlide, Product, RateSettings } from '../types';
 import { ArrowRight, ShieldCheck, Award, Sparkles, MapPin, Phone } from 'lucide-react';
 
 interface HomeViewProps {
@@ -9,6 +9,7 @@ interface HomeViewProps {
   categories: Category[];
   rates: RateSettings;
   wishlist: Product[];
+  slides?: FeaturedSlide[];
   onToggleWishlist: (product: Product) => void;
   onAddToCart: (product: Product) => void;
   onSelectProduct: (product: Product) => void;
@@ -20,6 +21,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   categories,
   rates,
   wishlist,
+  slides,
   onToggleWishlist,
   onAddToCart,
   onSelectProduct,
@@ -31,7 +33,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
     <div className="space-y-12 sm:space-y-16 pb-16 w-full">
       {/* 1. Hero Section */}
       <HeroBanner
+        slides={slides}
         onExploreCatalog={(slug) => onNavigateTab('gold', slug)}
+        onNavigateTab={onNavigateTab}
       />
 
       <div className="max-w-[1440px] 2xl:max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-10 space-y-12 sm:space-y-16 w-full">

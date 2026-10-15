@@ -1,12 +1,24 @@
 import React from 'react';
 import { MapPin, Phone, Mail, Instagram, ShieldCheck, Award, Clock } from 'lucide-react';
 import { Logo } from './Logo';
+import { StoreContactSettings } from '../types';
 
 interface FooterProps {
+  storeContact?: StoreContactSettings;
   onNavigateTab: (tab: string) => void;
 }
 
-export const Footer: React.FC<FooterProps> = ({ onNavigateTab }) => {
+export const Footer: React.FC<FooterProps> = ({ storeContact, onNavigateTab }) => {
+  const primaryPhone = storeContact?.phone_primary || '+91 94432 53072';
+  const secondaryPhone = storeContact?.phone_secondary || '+91 99444 00666';
+  const whatsappPhone = storeContact?.phone_whatsapp || '+91 94432 53072';
+  const supportEmail = storeContact?.email || 'natesajewellery@gmail.com';
+  const hours = storeContact?.opening_hours || 'Daily: 9:30 AM – 9:00 PM';
+  const mainAddress = storeContact?.main_branch_address || 'Near Old Bus Stand, Gandhi Road, Main Bazaar, Krishnagiri, Tamil Nadu — 635001';
+  const secondAddress = storeContact?.second_branch_address || 'Bazaar Street, Opposite Town Hall, Near Gandhi Statue, Dharmapuri, Tamil Nadu — 636701';
+
+  const cleanPhone = (p: string) => p.replace(/[^0-9+]/g, '');
+
   return (
     <footer className="bg-[#292321] text-[#FCF8F1] border-t-2 border-[#D4AF37]/50 pt-12 pb-8 w-full">
       <div className="max-w-[1440px] 2xl:max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-10 space-y-12 w-full">
@@ -63,14 +75,14 @@ export const Footer: React.FC<FooterProps> = ({ onNavigateTab }) => {
                 <Instagram className="w-4 h-4" />
               </a>
               <a
-                href="mailto:natesajewellery@gmail.com"
+                href={`mailto:${supportEmail}`}
                 className="bg-white/10 hover:bg-[#8F171B] p-2.5 rounded-full transition-colors text-[#EBDCC5] hover:text-white"
                 title="Email Us"
               >
                 <Mail className="w-4 h-4" />
               </a>
               <a
-                href="tel:+919443253072"
+                href={`tel:${cleanPhone(primaryPhone)}`}
                 className="bg-white/10 hover:bg-[#8F171B] p-2.5 rounded-full transition-colors text-[#EBDCC5] hover:text-white"
                 title="Call Us"
               >
@@ -118,7 +130,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigateTab }) => {
             </ul>
           </div>
 
-          {/* Showroom Branch 1: Krishnagiri */}
+          {/* Showroom Branches */}
           <div className="md:col-span-5 space-y-4">
             <h4 className="font-serif text-base sm:text-lg font-bold text-[#EBDCC5] border-b border-[#D4AF37]/30 pb-1.5">
               Our Physical Showroom Branches
@@ -130,11 +142,16 @@ export const Footer: React.FC<FooterProps> = ({ onNavigateTab }) => {
                 <span className="text-[#D4AF37] font-bold block text-xs uppercase">
                   Main Branch — Krishnagiri
                 </span>
-                <p className="text-gray-300 text-xs font-light">
-                  Near Old Bus Stand, Gandhi Road, Main Bazaar, Krishnagiri, Tamil Nadu — 635001
+                <p className="text-gray-300 text-xs font-light leading-relaxed">
+                  {mainAddress}
                 </p>
                 <p className="text-gray-200 font-mono font-semibold text-xs pt-1">
-                  +91 94432 53072 / +91 99444 00666
+                  <a href={`tel:${cleanPhone(primaryPhone)}`} className="hover:text-[#D4AF37] transition-colors">
+                    {primaryPhone}
+                  </a>
+                  {secondaryPhone && (
+                    <> / <a href={`tel:${cleanPhone(secondaryPhone)}`} className="hover:text-[#D4AF37] transition-colors">{secondaryPhone}</a></>
+                  )}
                 </p>
               </div>
 
@@ -143,18 +160,20 @@ export const Footer: React.FC<FooterProps> = ({ onNavigateTab }) => {
                 <span className="text-[#D4AF37] font-bold block text-xs uppercase">
                   Second Branch — Dharmapuri
                 </span>
-                <p className="text-gray-300 text-xs font-light">
-                  Bazaar Street, Opposite Town Hall, Near Gandhi Statue, Dharmapuri, Tamil Nadu — 636701
+                <p className="text-gray-300 text-xs font-light leading-relaxed">
+                  {secondAddress}
                 </p>
                 <p className="text-gray-200 font-mono font-semibold text-xs pt-1">
-                  +91 78680 82878
+                  <a href={`tel:${cleanPhone(primaryPhone)}`} className="hover:text-[#D4AF37] transition-colors">
+                    {primaryPhone}
+                  </a>
                 </p>
               </div>
             </div>
 
-            <div className="pt-1 flex items-center justify-between text-gray-400 text-xs">
-              <span>Email: natesajewellery@gmail.com</span>
-              <span>Daily: 9:30 AM – 9:00 PM</span>
+            <div className="pt-1 flex flex-col sm:flex-row items-start sm:items-center justify-between text-gray-400 text-xs gap-1">
+              <span>Email: <a href={`mailto:${supportEmail}`} className="text-[#EBDCC5] hover:underline">{supportEmail}</a></span>
+              <span>{hours}</span>
             </div>
           </div>
 

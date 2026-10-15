@@ -5,8 +5,8 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { v2 as cloudinary } from 'cloudinary';
-import { INITIAL_CATEGORIES, INITIAL_PRODUCTS, INITIAL_RATES } from './src/data/initialData.js';
-import { AdminUser, Category, CloudinaryConfig, CloudinaryLiveStatus, Enquiry, Order, Product, RateSettings, SupabaseLiveStatus } from './src/types.js';
+import { INITIAL_CATEGORIES, INITIAL_PRODUCTS, INITIAL_RATES, INITIAL_FEATURED_SLIDES, INITIAL_STORE_CONTACT } from './src/data/initialData.js';
+import { AdminUser, Category, CloudinaryConfig, CloudinaryLiveStatus, Enquiry, FeaturedSlide, Order, Product, RateSettings, StoreContactSettings, SupabaseLiveStatus } from './src/types.js';
 
 dotenv.config();
 
@@ -19,10 +19,59 @@ const PORT = Number(process.env.PORT) || 3000;
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// ---------------- LOCAL / IN-MEMORY STORE STATE ----------------
+// ---------------- LOCAL / PERSISTENT STORE STATE ----------------
+const SLIDES_FILE = path.resolve(__dirname, 'data', 'featured-slides.json');
+const STORE_CONTACT_FILE = path.resolve(__dirname, 'data', 'store-contact.json');
+
+function loadFeaturedSlides(): FeaturedSlide[] {
+  try {
+    if (fs.existsSync(SLIDES_FILE)) {
+      const raw = fs.readFileSync(SLIDES_FILE, 'utf-8');
+      return JSON.parse(raw);
+    }
+  } catch (err) {
+    console.error('Error reading slides file:', err);
+  }
+  return [...INITIAL_FEATURED_SLIDES];
+}
+
+function saveFeaturedSlides(slides: FeaturedSlide[]) {
+  try {
+    const dir = path.dirname(SLIDES_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(SLIDES_FILE, JSON.stringify(slides, null, 2));
+  } catch (err) {
+    console.error('Error saving slides file:', err);
+  }
+}
+
+function loadStoreContact(): StoreContactSettings {
+  try {
+    if (fs.existsSync(STORE_CONTACT_FILE)) {
+      const raw = fs.readFileSync(STORE_CONTACT_FILE, 'utf-8');
+      return { ...INITIAL_STORE_CONTACT, ...JSON.parse(raw) };
+    }
+  } catch (err) {
+    console.error('Error reading store contact file:', err);
+  }
+  return { ...INITIAL_STORE_CONTACT };
+}
+
+function saveStoreContact(contact: StoreContactSettings) {
+  try {
+    const dir = path.dirname(STORE_CONTACT_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(STORE_CONTACT_FILE, JSON.stringify(contact, null, 2));
+  } catch (err) {
+    console.error('Error saving store contact file:', err);
+  }
+}
+
 let currentRates: RateSettings = { ...INITIAL_RATES };
 let currentProducts: Product[] = [...INITIAL_PRODUCTS];
 let currentCategories: Category[] = [...INITIAL_CATEGORIES];
+let currentSlides: FeaturedSlide[] = loadFeaturedSlides();
+let currentStoreContact: StoreContactSettings = loadStoreContact();
 let currentOrders: Order[] = [
   {
     id: 'NJ-2026-8841',
@@ -1326,6 +1375,71 @@ app.post('/api/upload', async (req: Request, res: Response) => {
     status: 'local_preview_buffered',
     notice: 'Cloudinary is not linked yet. Connect Cloudinary in the Admin Portal or Vercel environment variables to host images permanently on Cloudinary CDN.'
   });
+});
+
+// ---------------- FEATURED HERO SLIDES ROUTES ----------------
+app.get('/api/slides', (req: Request, res: Response) => {
+  res.json(currentSlides);
+});
+
+app.post('/api/slides', (req: Request, res: Response) => {
+  const { title, subtitle, badge, image_url, category_slug, cta_text, display_order, is_active } = req.body;
+  if (!image_url || !title) {
+    return res.status(400).json({ error: 'Image URL and Title are required' });
+  }
+
+  const newSlide: FeaturedSlide = {
+    id: `slide-${Date.now()}`,
+    title: String(title).trim(),
+    subtitle: String(subtitle || '').trim(),
+    badge: badge ? String(badge).trim() : undefined,
+    image_url: String(image_url).trim(),
+    category_slug: category_slug || 'gold-necklaces-malas',
+    cta_text: cta_text ? String(cta_text).trim() : 'View Collection',
+    display_order: Number(display_order) || currentSlides.length + 1,
+    is_active: is_active !== false
+  };
+
+  currentSlides.push(newSlide);
+  saveFeaturedSlides(currentSlides);
+  res.status(201).json(newSlide);
+});
+
+app.put('/api/slides/:id', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const index = currentSlides.findIndex(s => s.id === id);
+  if (index === -1) {
+    return res.status(404).json({ error: 'Slide not found' });
+  }
+
+  currentSlides[index] = {
+    ...currentSlides[index],
+    ...req.body
+  };
+  saveFeaturedSlides(currentSlides);
+  res.json(currentSlides[index]);
+});
+
+app.delete('/api/slides/:id', (req: Request, res: Response) => {
+  const { id } = req.params;
+  currentSlides = currentSlides.filter(s => s.id !== id);
+  saveFeaturedSlides(currentSlides);
+  res.json({ success: true, deleted_id: id });
+});
+
+// ---------------- STORE CONTACT & ADDRESS SETTINGS ROUTES ----------------
+app.get('/api/store-contact', (req: Request, res: Response) => {
+  res.json(currentStoreContact);
+});
+
+app.put('/api/store-contact', (req: Request, res: Response) => {
+  const updated: StoreContactSettings = {
+    ...currentStoreContact,
+    ...req.body
+  };
+  currentStoreContact = updated;
+  saveStoreContact(updated);
+  res.json({ success: true, contact: updated });
 });
 
 // ---------------- VITE / STATIC SERVING ----------------

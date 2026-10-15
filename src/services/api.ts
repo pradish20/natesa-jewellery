@@ -1,4 +1,4 @@
-import { AdminUser, Category, CloudinaryConfig, CloudinaryLiveStatus, Enquiry, EnvStatus, Order, OrderStatus, Product, RateSettings, SupabaseLiveStatus } from '../types';
+import { AdminUser, Category, CloudinaryConfig, CloudinaryLiveStatus, Enquiry, EnvStatus, FeaturedSlide, Order, OrderStatus, Product, RateSettings, StoreContactSettings, SupabaseLiveStatus } from '../types';
 
 async function fetchJSON<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, {
@@ -160,5 +160,34 @@ export const api = {
     fetchJSON('/api/cloudinary/config', {
       method: 'POST',
       body: JSON.stringify(config)
+    }),
+
+  // Featured Slides
+  getSlides: (): Promise<FeaturedSlide[]> => fetchJSON<FeaturedSlide[]>('/api/slides'),
+
+  createSlide: (slide: Partial<FeaturedSlide>): Promise<FeaturedSlide> =>
+    fetchJSON('/api/slides', {
+      method: 'POST',
+      body: JSON.stringify(slide)
+    }),
+
+  updateSlide: (id: string, slide: Partial<FeaturedSlide>): Promise<FeaturedSlide> =>
+    fetchJSON(`/api/slides/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(slide)
+    }),
+
+  deleteSlide: (id: string): Promise<{ success: boolean; deleted_id: string }> =>
+    fetchJSON(`/api/slides/${id}`, {
+      method: 'DELETE'
+    }),
+
+  // Store Contact & Address Settings
+  getStoreContact: (): Promise<StoreContactSettings> => fetchJSON<StoreContactSettings>('/api/store-contact'),
+
+  updateStoreContact: (contact: Partial<StoreContactSettings>): Promise<{ success: boolean; contact: StoreContactSettings }> =>
+    fetchJSON('/api/store-contact', {
+      method: 'PUT',
+      body: JSON.stringify(contact)
     })
 };

@@ -163,3 +163,26 @@ export interface CloudinaryLiveStatus {
   error?: string;
 }
 
+export interface FeaturedSlide {
+  id: string;
+  title: string;
+  subtitle: string;
+  badge?: string;
+  image_url: string;
+  category_slug?: string;
+  cta_text?: string;
+  display_order: number;
+  is_active: boolean;
+}
+
+export interface StoreContactSettings {
+  phone_primary: string;
+  phone_secondary: string;
+  phone_whatsapp: string;
+  email: string;
+  main_branch_address: string;
+  second_branch_address: string;
+  opening_hours: string;
+  announcement_text: string;
+}
+

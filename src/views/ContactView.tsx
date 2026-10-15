@@ -1,8 +1,19 @@
 import React, { useState } from 'react';
 import { MapPin, Phone, Mail, Instagram, Send, CheckCircle2, AlertCircle } from 'lucide-react';
 import { api } from '../services/api';
+import { StoreContactSettings } from '../types';
 
-export const ContactView: React.FC = () => {
+interface ContactViewProps {
+  storeContact?: StoreContactSettings;
+}
+
+export const ContactView: React.FC<ContactViewProps> = ({ storeContact }) => {
+  const primaryPhone = storeContact?.phone_primary || '+91 94432 53072';
+  const secondaryPhone = storeContact?.phone_secondary || '+91 99444 00666';
+  const cleanPhone = (p: string) => p.replace(/[^0-9+]/g, '');
+  const mainAddress = storeContact?.main_branch_address || 'Near Old Bus Stand, Gandhi Road, Main Bazaar, Krishnagiri, Tamil Nadu — 635001';
+  const secondAddress = storeContact?.second_branch_address || 'Bazaar Street, Opposite Town Hall, Near Gandhi Statue, Dharmapuri, Tamil Nadu — 636701';
+
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
@@ -27,7 +38,7 @@ export const ContactView: React.FC = () => {
       setFormData({ name: '', phone: '', email: '', branch: 'Krishnagiri Main Branch', message: '' });
     } catch (err) {
       setIsSubmitting(false);
-      setErrorMsg('Failed to send enquiry. Please call us directly at +91 94432 53072');
+      setErrorMsg(`Failed to send enquiry. Please call us directly at ${primaryPhone}`);
     }
   };
 
@@ -57,7 +68,7 @@ export const ContactView: React.FC = () => {
                 <h3 className="font-serif text-xl font-bold text-[#292321]">Krishnagiri Branch</h3>
               </div>
               <a
-                href="tel:+919443253072"
+                href={`tel:${cleanPhone(primaryPhone)}`}
                 className="bg-[#8F171B] text-white p-2 rounded-lg text-xs font-semibold flex items-center gap-1"
               >
                 <Phone className="w-3.5 h-3.5 text-[#D4AF37]" /> Call Branch
@@ -67,10 +78,10 @@ export const ContactView: React.FC = () => {
             <div className="text-xs text-gray-700 space-y-1 font-light">
               <p className="flex items-start gap-2">
                 <MapPin className="w-4 h-4 text-[#8F171B] shrink-0 mt-0.5" />
-                <span>Near Old Bus Stand, Gandhi Road, Main Bazaar, Krishnagiri, Tamil Nadu — 635001</span>
+                <span>{mainAddress}</span>
               </p>
               <p className="font-mono font-semibold text-[#8F171B] pt-1">
-                Phones: +91 94432 53072 / +91 99444 00666
+                Phones: {primaryPhone} {secondaryPhone ? `/ ${secondaryPhone}` : ''}
               </p>
             </div>
 
@@ -92,7 +103,7 @@ export const ContactView: React.FC = () => {
                 <h3 className="font-serif text-xl font-bold text-[#292321]">Dharmapuri Branch</h3>
               </div>
               <a
-                href="tel:+917868082878"
+                href={`tel:${cleanPhone(primaryPhone)}`}
                 className="bg-[#8F171B] text-white p-2 rounded-lg text-xs font-semibold flex items-center gap-1"
               >
                 <Phone className="w-3.5 h-3.5 text-[#D4AF37]" /> Call Branch
@@ -102,10 +113,10 @@ export const ContactView: React.FC = () => {
             <div className="text-xs text-gray-700 space-y-1 font-light">
               <p className="flex items-start gap-2">
                 <MapPin className="w-4 h-4 text-[#8F171B] shrink-0 mt-0.5" />
-                <span>Bazaar Street, Opposite Town Hall, Near Gandhi Statue, Dharmapuri, Tamil Nadu — 636701</span>
+                <span>{secondAddress}</span>
               </p>
               <p className="font-mono font-semibold text-[#8F171B] pt-1">
-                Phone: +91 78680 82878
+                Phone: {primaryPhone}
               </p>
             </div>
 

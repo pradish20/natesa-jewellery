@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ShoppingBag, Heart, Search, ShieldCheck, Phone, Sparkles, Menu, X, Lock, ChevronDown } from 'lucide-react';
-import { RateSettings } from '../types';
+import { RateSettings, StoreContactSettings } from '../types';
 import { Logo } from './Logo';
 
 interface HeaderProps {
@@ -8,6 +8,7 @@ interface HeaderProps {
   cartCount: number;
   wishlistCount: number;
   activeTab: string;
+  storeContact?: StoreContactSettings;
   setActiveTab: (tab: string, categorySlug?: string) => void;
   onOpenCart: () => void;
   onOpenWishlist: () => void;
@@ -18,6 +19,7 @@ export const Header: React.FC<HeaderProps> = ({
   cartCount,
   wishlistCount,
   activeTab,
+  storeContact,
   setActiveTab,
   onOpenCart,
   onOpenWishlist,
@@ -26,6 +28,10 @@ export const Header: React.FC<HeaderProps> = ({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [goldDropdownOpen, setGoldDropdownOpen] = useState(false);
   const [silverDropdownOpen, setSilverDropdownOpen] = useState(false);
+
+  const phoneDisplay = storeContact?.phone_primary || '+91 94432 53072';
+  const phoneTel = phoneDisplay.replace(/[^0-9+]/g, '');
+  const announcement = storeContact?.announcement_text || 'Crafted with Trust • Timeless Since Generations';
 
   const goldSubmenu = [
     { label: 'All Gold Jewellery', slug: 'all' },
@@ -47,7 +53,7 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="bg-[#8F171B] text-[#EBDCC5] px-4 sm:px-6 lg:px-8 xl:px-10 py-1.5 text-xs font-medium tracking-wide flex items-center justify-between max-w-[1440px] 2xl:max-w-[1600px] mx-auto w-full">
         <div className="flex items-center gap-2 mx-auto sm:mx-0 text-[11px] sm:text-xs">
           <Sparkles className="w-3.5 h-3.5 text-[#D4AF37] shrink-0 animate-pulse" />
-          <span className="truncate">Crafted with Trust • Timeless Since Generations</span>
+          <span className="truncate">{announcement}</span>
           <span className="hidden sm:inline-block text-[#D4AF37]/60">|</span>
           <span className="hidden sm:inline-flex items-center gap-1 text-[#EBDCC5]">
             <ShieldCheck className="w-3.5 h-3.5 text-[#D4AF37] shrink-0" /> 100% BIS 916 Hallmarked Gold
@@ -55,8 +61,8 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         <div className="hidden md:flex items-center gap-6 text-[11px] text-[#EBDCC5] shrink-0">
-          <a href="tel:+919443253072" className="hover:text-white transition-colors flex items-center gap-1">
-            <Phone className="w-3 h-3 text-[#D4AF37]" /> +91 94432 53072
+          <a href={`tel:${phoneTel}`} className="hover:text-white transition-colors flex items-center gap-1">
+            <Phone className="w-3 h-3 text-[#D4AF37]" /> {phoneDisplay}
           </a>
         </div>
       </div>
@@ -332,8 +338,8 @@ export const Header: React.FC<HeaderProps> = ({
 
           <div className="pt-3 border-t border-[#D4AF37]/20 flex items-center justify-between text-xs text-[#292321]/80">
             <span>Main Branch: Krishnagiri</span>
-            <a href="tel:+919443253072" className="text-[#8F171B] font-semibold hover:underline">
-              +91 94432 53072
+            <a href={`tel:${phoneTel}`} className="text-[#8F171B] font-semibold hover:underline">
+              {phoneDisplay}
             </a>
           </div>
         </div>
