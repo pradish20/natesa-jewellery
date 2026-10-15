@@ -149,3 +149,16 @@ export interface SupabaseLiveStatus {
   counts: SupabaseTableCounts;
 }
 
+export interface CloudinaryConfig {
+  cloud_name: string;
+  api_key: string;
+  api_secret: string;
+}
+
+export interface CloudinaryLiveStatus {
+  configured: boolean;
+  connected: boolean;
+  cloud_name?: string;
+  error?: string;
+}
+

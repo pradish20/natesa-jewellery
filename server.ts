@@ -4,8 +4,9 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { v2 as cloudinary } from 'cloudinary';
 import { INITIAL_CATEGORIES, INITIAL_PRODUCTS, INITIAL_RATES } from './src/data/initialData.js';
-import { AdminUser, Category, Enquiry, Order, Product, RateSettings, SupabaseLiveStatus } from './src/types.js';
+import { AdminUser, Category, CloudinaryConfig, CloudinaryLiveStatus, Enquiry, Order, Product, RateSettings, SupabaseLiveStatus } from './src/types.js';
 
 dotenv.config();
 
@@ -147,18 +148,94 @@ function initSupabaseClient() {
 
 initSupabaseClient();
 
-// Cloudinary presence check
-const cloudinaryCloudName = process.env.CLOUDINARY_CLOUD_NAME || '';
-const cloudinaryApiKey = process.env.CLOUDINARY_API_KEY || '';
-const cloudinaryApiSecret = process.env.CLOUDINARY_API_SECRET || '';
-const isCloudinaryConfigured = Boolean(
-  cloudinaryCloudName &&
-  cloudinaryCloudName !== 'your-cloud-name' &&
-  cloudinaryApiKey &&
-  cloudinaryApiKey !== 'your-api-key' &&
-  cloudinaryApiSecret &&
-  cloudinaryApiSecret !== 'your-api-secret'
-);
+// ---------------- CLOUDINARY CLIENT & CONFIGURATION ----------------
+const CLOUDINARY_CONFIG_FILE = path.resolve(__dirname, 'data', 'cloudinary-config.json');
+
+function loadSavedCloudinaryConfig(): { cloud_name: string; api_key: string; api_secret: string } {
+  try {
+    if (fs.existsSync(CLOUDINARY_CONFIG_FILE)) {
+      const raw = fs.readFileSync(CLOUDINARY_CONFIG_FILE, 'utf-8');
+      const parsed = JSON.parse(raw);
+      if (parsed.cloud_name && parsed.api_key && parsed.api_secret) {
+        return {
+          cloud_name: parsed.cloud_name,
+          api_key: parsed.api_key,
+          api_secret: parsed.api_secret
+        };
+      }
+    }
+  } catch (err) {
+    console.error('Error reading cloudinary config file:', err);
+  }
+  return { cloud_name: '', api_key: '', api_secret: '' };
+}
+
+function saveCloudinaryConfigFile(cloud_name: string, api_key: string, api_secret: string) {
+  try {
+    const dir = path.dirname(CLOUDINARY_CONFIG_FILE);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    fs.writeFileSync(
+      CLOUDINARY_CONFIG_FILE,
+      JSON.stringify({ cloud_name, api_key, api_secret, updated_at: new Date().toISOString() }, null, 2)
+    );
+  } catch (err) {
+    console.error('Error writing cloudinary config file:', err);
+  }
+}
+
+const savedCloudinaryConfig = loadSavedCloudinaryConfig();
+
+let cloudinaryCloudName =
+  process.env.CLOUDINARY_CLOUD_NAME ||
+  process.env.VITE_CLOUDINARY_CLOUD_NAME ||
+  savedCloudinaryConfig.cloud_name ||
+  '';
+
+let cloudinaryApiKey =
+  process.env.CLOUDINARY_API_KEY ||
+  process.env.VITE_CLOUDINARY_API_KEY ||
+  savedCloudinaryConfig.api_key ||
+  '';
+
+let cloudinaryApiSecret =
+  process.env.CLOUDINARY_API_SECRET ||
+  process.env.VITE_CLOUDINARY_API_SECRET ||
+  savedCloudinaryConfig.api_secret ||
+  '';
+
+function isCloudinaryConfigValid(name: string, key: string, secret: string): boolean {
+  return Boolean(
+    name &&
+    name.trim() !== '' &&
+    name !== 'your-cloud-name' &&
+    key &&
+    key.trim() !== '' &&
+    key !== 'your-api-key' &&
+    secret &&
+    secret.trim() !== '' &&
+    secret !== 'your-api-secret'
+  );
+}
+
+function initCloudinaryClient() {
+  if (isCloudinaryConfigValid(cloudinaryCloudName, cloudinaryApiKey, cloudinaryApiSecret)) {
+    try {
+      cloudinary.config({
+        cloud_name: cloudinaryCloudName.trim(),
+        api_key: cloudinaryApiKey.trim(),
+        api_secret: cloudinaryApiSecret.trim(),
+        secure: true
+      });
+      console.log('✅ Cloudinary client initialized with cloud_name:', cloudinaryCloudName.trim());
+    } catch (e) {
+      console.error('❌ Failed to configure Cloudinary:', e);
+    }
+  }
+}
+
+initCloudinaryClient();
 
 // ---------------- SUPABASE SQL SCHEMA EXPORT ----------------
 const SUPABASE_SCHEMA_SQL = `-- Natesa Jewellery Supabase Database Schema
@@ -316,9 +393,10 @@ async function seedInitialDataToSupabase(): Promise<{ success: boolean; details:
 
 // Status route for Vercel / Applet Env Indicator
 app.get('/api/status', (req: Request, res: Response) => {
+  const isCloudinaryActive = isCloudinaryConfigValid(cloudinaryCloudName, cloudinaryApiKey, cloudinaryApiSecret);
   res.json({
     supabase_configured: isConfigValid(supabaseUrl, supabaseKey),
-    cloudinary_configured: isCloudinaryConfigured,
+    cloudinary_configured: isCloudinaryActive,
     env_vars: {
       SUPABASE_URL: Boolean(supabaseUrl),
       SUPABASE_ANON_KEY: Boolean(supabaseKey),
@@ -328,6 +406,85 @@ app.get('/api/status', (req: Request, res: Response) => {
       CLOUDINARY_API_SECRET: Boolean(process.env.CLOUDINARY_API_SECRET && process.env.CLOUDINARY_API_SECRET !== 'your-api-secret')
     }
   });
+});
+
+// Live Cloudinary Ping / Verification
+app.get('/api/cloudinary/status', async (req: Request, res: Response) => {
+  const configured = isCloudinaryConfigValid(cloudinaryCloudName, cloudinaryApiKey, cloudinaryApiSecret);
+  if (!configured) {
+    return res.json({
+      configured: false,
+      connected: false,
+      cloud_name: cloudinaryCloudName || undefined,
+      error: 'Cloudinary credentials not configured yet. Link them below or in Vercel.'
+    } satisfies CloudinaryLiveStatus);
+  }
+
+  try {
+    cloudinary.config({
+      cloud_name: cloudinaryCloudName.trim(),
+      api_key: cloudinaryApiKey.trim(),
+      api_secret: cloudinaryApiSecret.trim(),
+      secure: true
+    });
+    await cloudinary.api.ping();
+    res.json({
+      configured: true,
+      connected: true,
+      cloud_name: cloudinaryCloudName
+    } satisfies CloudinaryLiveStatus);
+  } catch (err: any) {
+    res.json({
+      configured: true,
+      connected: false,
+      cloud_name: cloudinaryCloudName,
+      error: err.message || 'Failed to ping Cloudinary API. Please check API Key and Secret.'
+    } satisfies CloudinaryLiveStatus);
+  }
+});
+
+// Update Cloudinary Configuration directly from Admin UI
+app.post('/api/cloudinary/config', async (req: Request, res: Response) => {
+  const { cloud_name, api_key, api_secret } = req.body;
+  if (!cloud_name || !api_key || !api_secret) {
+    return res.status(400).json({ error: 'Cloud Name, API Key, and API Secret are required.' });
+  }
+
+  const cleanName = cloud_name.trim();
+  const cleanKey = api_key.trim();
+  const cleanSecret = api_secret.trim();
+
+  if (!isCloudinaryConfigValid(cleanName, cleanKey, cleanSecret)) {
+    return res.status(400).json({ error: 'Invalid Cloudinary configuration format.' });
+  }
+
+  try {
+    cloudinary.config({
+      cloud_name: cleanName,
+      api_key: cleanKey,
+      api_secret: cleanSecret,
+      secure: true
+    });
+
+    // Test ping
+    await cloudinary.api.ping();
+
+    cloudinaryCloudName = cleanName;
+    cloudinaryApiKey = cleanKey;
+    cloudinaryApiSecret = cleanSecret;
+
+    saveCloudinaryConfigFile(cleanName, cleanKey, cleanSecret);
+
+    res.json({
+      success: true,
+      message: 'Cloudinary successfully connected and verified with live ping!',
+      cloud_name: cleanName
+    });
+  } catch (err: any) {
+    res.status(500).json({
+      error: 'Failed to verify Cloudinary credentials: ' + (err.message || 'Invalid credentials')
+    });
+  }
 });
 
 // Live Supabase Health & Table Counts Check
@@ -980,24 +1137,63 @@ app.post('/api/enquiries', (req: Request, res: Response) => {
   res.status(201).json({ success: true, enquiry: newEnquiry });
 });
 
-// File upload handler (Cloudinary streaming or Base64 return)
-app.post('/api/upload', (req: Request, res: Response) => {
-  const { image } = req.body;
+// File upload handler (Cloudinary real CDN upload or Base64 return)
+app.post('/api/upload', async (req: Request, res: Response) => {
+  const { image, folder } = req.body;
   if (!image) {
     return res.status(400).json({ error: 'No image data provided' });
   }
+
+  // If already an external URL
   if (typeof image === 'string' && (image.startsWith('http://') || image.startsWith('https://'))) {
-    return res.json({ url: image, source: 'external' });
+    if (image.includes('res.cloudinary.com')) {
+      return res.json({ url: image, source: 'cloudinary' });
+    }
   }
 
+  const isConfigured = isCloudinaryConfigValid(cloudinaryCloudName, cloudinaryApiKey, cloudinaryApiSecret);
+
+  if (isConfigured) {
+    try {
+      cloudinary.config({
+        cloud_name: cloudinaryCloudName.trim(),
+        api_key: cloudinaryApiKey.trim(),
+        api_secret: cloudinaryApiSecret.trim(),
+        secure: true
+      });
+
+      const uploadResult = await cloudinary.uploader.upload(image, {
+        folder: folder || 'natesa-jewellery/products',
+        resource_type: 'image',
+        transformation: [
+          { quality: 'auto', fetch_format: 'auto' }
+        ]
+      });
+
+      return res.json({
+        url: uploadResult.secure_url,
+        public_id: uploadResult.public_id,
+        cloud_name: cloudinaryCloudName,
+        status: 'uploaded_to_cloudinary'
+      });
+    } catch (err: any) {
+      console.error('Cloudinary upload error:', err);
+      return res.status(500).json({
+        error: 'Cloudinary upload error: ' + (err.message || 'Check Cloudinary credentials')
+      });
+    }
+  }
+
+  // Fallback if Cloudinary is not connected yet
   const simulatedUrl = typeof image === 'string' && image.startsWith('data:image')
     ? image
     : `https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?auto=format&fit=crop&w=800&q=80`;
 
   res.json({
     url: simulatedUrl,
-    cloud_name: isCloudinaryConfigured ? cloudinaryCloudName : 'local-cdn-fallback',
-    status: isCloudinaryConfigured ? 'uploaded_to_cloudinary' : 'local_preview_buffered'
+    cloud_name: 'local-cdn-fallback',
+    status: 'local_preview_buffered',
+    notice: 'Cloudinary is not linked yet. Connect Cloudinary in the Admin Portal or Vercel environment variables to host images permanently on Cloudinary CDN.'
   });
 });
 

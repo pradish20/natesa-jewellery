@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import {
   Lock, KeyRound, Server, Cloud, Database, LayoutDashboard, Package, Folders,
   ShoppingBag, Settings, Plus, Edit, Trash2, CheckCircle2, AlertCircle, RefreshCw, Upload,
-  Copy, Check, ShieldCheck, UserCheck, ExternalLink, ArrowRight
+  Copy, Check, ShieldCheck, UserCheck, ExternalLink, ArrowRight, Image as ImageIcon, Sparkles, Link2
 } from 'lucide-react';
-import { AdminUser, Category, EnvStatus, Order, OrderStatus, Product, RateSettings, SupabaseLiveStatus } from '../types';
+import { AdminUser, Category, CloudinaryConfig, CloudinaryLiveStatus, EnvStatus, Order, OrderStatus, Product, RateSettings, SupabaseLiveStatus } from '../types';
 import { api } from '../services/api';
 import { formatINR } from '../utils/pricing';
 
@@ -48,12 +48,25 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [adminPin, setAdminPin] = useState<string>('');
 
   // Active Admin Tab
-  const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'categories' | 'orders' | 'rates' | 'supabase'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'categories' | 'orders' | 'rates' | 'supabase' | 'cloudinary'>('overview');
 
   // Vercel / Env & Supabase Live Status State
   const [envStatus, setEnvStatus] = useState<EnvStatus | null>(null);
   const [supabaseStatus, setSupabaseStatus] = useState<SupabaseLiveStatus | null>(null);
+  const [cloudinaryStatus, setCloudinaryStatus] = useState<CloudinaryLiveStatus | null>(null);
   const [loadingStatus, setLoadingStatus] = useState<boolean>(false);
+
+  // Cloudinary Configuration Form State
+  const [cloudinaryNameInput, setCloudinaryNameInput] = useState<string>('');
+  const [cloudinaryKeyInput, setCloudinaryKeyInput] = useState<string>('');
+  const [cloudinarySecretInput, setCloudinarySecretInput] = useState<string>('');
+  const [cloudinaryConfigMsg, setCloudinaryConfigMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [cloudinarySaving, setCloudinarySaving] = useState<boolean>(false);
+  const [testUploadLoading, setTestUploadLoading] = useState<boolean>(false);
+  const [testUploadResult, setTestUploadResult] = useState<{ url: string; cloud_name?: string } | null>(null);
+  const [testUploadError, setTestUploadError] = useState<string>('');
+  const [copiedVarName, setCopiedVarName] = useState<string>('');
+  const [imageUploadLoading, setImageUploadLoading] = useState<boolean>(false);
 
   // Supabase Configuration Form
   const [supabaseUrlInput, setSupabaseUrlInput] = useState<string>('');
@@ -95,14 +108,19 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const fetchStatusAndSupabase = async () => {
     setLoadingStatus(true);
     try {
-      const [env, supa] = await Promise.all([
+      const [env, supa, cloud] = await Promise.all([
         api.getEnvStatus().catch(() => null),
-        api.getSupabaseStatus().catch(() => null)
+        api.getSupabaseStatus().catch(() => null),
+        api.getCloudinaryStatus().catch(() => null)
       ]);
       setEnvStatus(env);
       setSupabaseStatus(supa);
+      setCloudinaryStatus(cloud);
       if (supa?.url) {
         setSupabaseUrlInput(supa.url);
+      }
+      if (cloud?.cloud_name) {
+        setCloudinaryNameInput(cloud.cloud_name);
       }
     } catch (err) {
       console.error('Failed to query status:', err);
@@ -261,6 +279,57 @@ export const AdminView: React.FC<AdminViewProps> = ({
     }
   };
 
+  // Cloudinary Config Save & Ping
+  const handleSaveCloudinaryConfig = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCloudinarySaving(true);
+    setCloudinaryConfigMsg(null);
+    try {
+      const res = await api.saveCloudinaryConfig({
+        cloud_name: cloudinaryNameInput,
+        api_key: cloudinaryKeyInput,
+        api_secret: cloudinarySecretInput
+      });
+      setCloudinaryConfigMsg({ type: 'success', text: res.message });
+      await fetchStatusAndSupabase();
+    } catch (err: any) {
+      setCloudinaryConfigMsg({ type: 'error', text: err.message || 'Failed to verify Cloudinary credentials' });
+    } finally {
+      setCloudinarySaving(false);
+    }
+  };
+
+  // Test Image Upload to Cloudinary
+  const handleTestImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setTestUploadLoading(true);
+    setTestUploadError('');
+    setTestUploadResult(null);
+
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      try {
+        const base64 = reader.result as string;
+        const res = await api.uploadImage(base64);
+        setTestUploadResult({ url: res.url, cloud_name: res.cloud_name });
+      } catch (err: any) {
+        setTestUploadError(err.message || 'Image upload failed. Check Cloudinary settings.');
+      } finally {
+        setTestUploadLoading(false);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const copyToClipboard = (text: string, label: string) => {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+      setCopiedVarName(label);
+      setTimeout(() => setCopiedVarName(''), 3000);
+    }
+  };
+
   // Product Submit
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -327,6 +396,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setImageUploadLoading(true);
     const reader = new FileReader();
     reader.onloadend = async () => {
       const base64 = reader.result as string;
@@ -339,6 +409,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
         }
       } catch (err) {
         console.error('Upload failed:', err);
+      } finally {
+        setImageUploadLoading(false);
       }
     };
     reader.readAsDataURL(file);
@@ -501,7 +573,11 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
         {/* Live Supabase & Cloudinary Pill */}
         <div className="bg-white/10 border border-[#D4AF37]/30 rounded-xl p-2.5 sm:p-3 flex flex-wrap items-center gap-3 sm:gap-4 text-xs max-w-full">
-          <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => setActiveTab('supabase')}
+            className="flex items-center gap-1.5 hover:opacity-80 transition-opacity cursor-pointer text-left"
+            title="Configure Supabase Database"
+          >
             <Database className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#D4AF37] shrink-0" />
             <span>
               Supabase:{' '}
@@ -509,23 +585,27 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 {supabaseStatus?.connected ? 'Live Connected' : 'Local Persistence'}
               </strong>
             </span>
-          </div>
+          </button>
 
-          <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => setActiveTab('cloudinary')}
+            className="flex items-center gap-1.5 hover:opacity-80 transition-opacity cursor-pointer text-left"
+            title="Configure Cloudinary Media CDN"
+          >
             <Cloud className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#D4AF37] shrink-0" />
             <span>
               Cloudinary:{' '}
-              <strong className={envStatus?.cloudinary_configured ? 'text-emerald-400 font-bold' : 'text-amber-300'}>
-                {envStatus?.cloudinary_configured ? 'Connected' : 'Local CDN Fallback'}
+              <strong className={cloudinaryStatus?.connected || envStatus?.cloudinary_configured ? 'text-emerald-400 font-bold' : 'text-amber-300'}>
+                {cloudinaryStatus?.connected || envStatus?.cloudinary_configured ? 'Live Connected' : 'Configure'}
               </strong>
             </span>
-          </div>
+          </button>
 
           <button
             onClick={fetchStatusAndSupabase}
             disabled={loadingStatus}
             className="p-1 hover:text-[#D4AF37] transition-colors ml-auto cursor-pointer"
-            title="Refresh Environment & Supabase Status"
+            title="Refresh Environment, Supabase & Cloudinary Status"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loadingStatus ? 'animate-spin' : ''}`} />
           </button>
@@ -547,7 +627,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
           { id: 'categories', label: 'Categories Manager', icon: Folders },
           { id: 'orders', label: 'Orders & Courier', icon: ShoppingBag },
           { id: 'rates', label: 'Live Rates', icon: Settings },
-          { id: 'supabase', label: 'Supabase & Database', icon: Database }
+          { id: 'supabase', label: 'Supabase & Database', icon: Database },
+          { id: 'cloudinary', label: 'Cloudinary CDN', icon: Cloud }
         ].map((tab) => {
           const Icon = tab.icon;
           return (
@@ -563,6 +644,9 @@ export const AdminView: React.FC<AdminViewProps> = ({
               <Icon className="w-4 h-4 text-[#D4AF37]" />
               <span>{tab.label}</span>
               {tab.id === 'supabase' && supabaseStatus?.connected && (
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              )}
+              {tab.id === 'cloudinary' && (cloudinaryStatus?.connected || envStatus?.cloudinary_configured) && (
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
               )}
             </button>
@@ -1282,6 +1366,322 @@ export const AdminView: React.FC<AdminViewProps> = ({
         </div>
       )}
 
+      {/* TAB 7: CLOUDINARY MEDIA CDN */}
+      {activeTab === 'cloudinary' && (
+        <div className="space-y-6 animate-in fade-in duration-200 w-full">
+          {/* Header Banner */}
+          <div className="bg-gradient-to-r from-[#292321] via-[#3d1b1e] to-[#292321] text-white p-5 sm:p-6 rounded-2xl border-2 border-[#D4AF37]/40 shadow-md space-y-3">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-bold text-[#D4AF37] uppercase tracking-wider">MEDIA CDN & ASSET STORAGE</span>
+                  <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase ${
+                    cloudinaryStatus?.connected || envStatus?.cloudinary_configured
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                      : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                  }`}>
+                    {cloudinaryStatus?.connected || envStatus?.cloudinary_configured ? '● Connected' : '○ Not Configured'}
+                  </span>
+                </div>
+                <h3 className="font-serif text-2xl font-bold text-[#EBDCC5] mt-1">Cloudinary Media Integration</h3>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <a
+                  href="https://console.cloudinary.com"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="bg-[#FCF8F1] hover:bg-[#EBDCC5] text-[#8F171B] px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <span>Open Cloudinary Console</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              </div>
+            </div>
+
+            <p className="text-xs text-gray-200 leading-relaxed max-w-3xl">
+              Cloudinary provides automatic high-speed image optimization (converting gold & diamond photos to lightweight WebP/AVIF format), global CDN edge caching, and permanent asset storage for your catalogue.
+            </p>
+          </div>
+
+          {/* Vercel Environment Variables Card */}
+          <div className="bg-gradient-to-br from-[#1c1917] to-[#292321] text-white p-5 sm:p-6 rounded-2xl border border-[#D4AF37]/50 shadow-sm space-y-4">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <div className="flex items-center gap-2">
+                <Server className="w-5 h-5 text-[#D4AF37]" />
+                <h4 className="font-bold text-sm text-[#EBDCC5]">Vercel Deployment Environment Variables</h4>
+              </div>
+              <span className="text-[10px] bg-[#8F171B] text-white px-2 py-0.5 rounded font-mono">
+                Production Setup
+              </span>
+            </div>
+
+            <p className="text-xs text-gray-300 leading-relaxed">
+              When deploying to <strong>Vercel</strong>, add these 3 variables in your Vercel Project Settings (<strong>Settings → Environment Variables</strong>). Click any button to copy the exact key name:
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {[
+                {
+                  key: 'CLOUDINARY_CLOUD_NAME',
+                  desc: 'Your Cloudinary Cloud Name (e.g. natesa-jewels)',
+                  detected: envStatus?.env_vars.CLOUDINARY_CLOUD_NAME
+                },
+                {
+                  key: 'CLOUDINARY_API_KEY',
+                  desc: 'Your public API key from Cloudinary Console',
+                  detected: envStatus?.env_vars.CLOUDINARY_API_KEY
+                },
+                {
+                  key: 'CLOUDINARY_API_SECRET',
+                  desc: 'Your private API secret (keep confidential)',
+                  detected: envStatus?.env_vars.CLOUDINARY_API_SECRET
+                }
+              ].map((item) => (
+                <div key={item.key} className="bg-white/5 border border-white/10 rounded-xl p-3.5 space-y-2 flex flex-col justify-between">
+                  <div>
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="font-mono font-bold text-[#EBDCC5] text-xs">{item.key}</span>
+                      <button
+                        onClick={() => copyToClipboard(item.key, item.key)}
+                        className="text-[10px] bg-white/10 hover:bg-white/20 text-[#D4AF37] px-2 py-0.5 rounded cursor-pointer transition-colors"
+                      >
+                        {copiedVarName === item.key ? 'Copied!' : 'Copy Key'}
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-gray-300 leading-snug">{item.desc}</p>
+                  </div>
+                  <div className="text-[10px] text-gray-400 pt-2 border-t border-white/5">
+                    Detected in Env: <strong className={item.detected ? 'text-emerald-400' : 'text-gray-400'}>
+                      {item.detected ? 'YES' : 'Not set'}
+                    </strong>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="text-[11px] text-gray-300 bg-white/5 p-3 rounded-lg border border-white/10 flex items-center justify-between">
+              <span>
+                💡 <strong>Vercel Tip:</strong> Once these 3 variables (along with your Supabase keys) are saved in Vercel, trigger a redeploy and all product images will be stored on your Cloudinary CDN automatically.
+              </span>
+              <a
+                href="https://vercel.com/docs/projects/environment-variables"
+                target="_blank"
+                rel="noreferrer"
+                className="text-[#D4AF37] hover:underline font-bold text-xs shrink-0 ml-3 flex items-center gap-1"
+              >
+                Vercel Docs <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+          </div>
+
+          {/* Setup Instructions & Test Connection Form */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full">
+            {/* Step-by-Step Guide */}
+            <div className="bg-white p-5 rounded-2xl border border-[#D4AF37]/40 shadow-xs space-y-4">
+              <div className="border-b pb-3">
+                <h4 className="font-serif text-lg font-bold text-[#292321]">Step-by-Step: How to Link Cloudinary</h4>
+                <p className="text-xs text-gray-500">
+                  Follow these 4 simple steps to connect your Cloudinary media account:
+                </p>
+              </div>
+
+              <div className="space-y-3 text-xs">
+                <div className="flex gap-3 items-start bg-[#FCF8F1] p-3 rounded-xl border border-[#D4AF37]/30">
+                  <span className="w-5 h-5 rounded-full bg-[#8F171B] text-white flex items-center justify-center font-bold text-xs shrink-0">1</span>
+                  <div>
+                    <h5 className="font-bold text-[#292321]">Sign Up or Log In to Cloudinary</h5>
+                    <p className="text-gray-600 mt-0.5">
+                      Go to <a href="https://cloudinary.com/users/register_free" target="_blank" rel="noreferrer" className="text-[#8F171B] font-bold underline">cloudinary.com</a> and sign up for a free account. Free tier includes 25GB monthly storage & bandwidth.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex gap-3 items-start bg-[#FCF8F1] p-3 rounded-xl border border-[#D4AF37]/30">
+                  <span className="w-5 h-5 rounded-full bg-[#8F171B] text-white flex items-center justify-center font-bold text-xs shrink-0">2</span>
+                  <div>
+                    <h5 className="font-bold text-[#292321]">Copy API Keys from Cloudinary Console</h5>
+                    <p className="text-gray-600 mt-0.5">
+                      On the Cloudinary Console dashboard, look for <strong>Account Details</strong>. Copy your <strong>Cloud name</strong>, <strong>API Key</strong>, and <strong>API Secret</strong>.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex gap-3 items-start bg-[#FCF8F1] p-3 rounded-xl border border-[#D4AF37]/30">
+                  <span className="w-5 h-5 rounded-full bg-[#8F171B] text-white flex items-center justify-center font-bold text-xs shrink-0">3</span>
+                  <div>
+                    <h5 className="font-bold text-[#292321]">Paste & Test in this Admin Portal</h5>
+                    <p className="text-gray-600 mt-0.5">
+                      Paste the 3 values in the form on the right and click <strong>Save & Test Cloudinary</strong>. The system will ping Cloudinary live to verify they work.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex gap-3 items-start bg-[#FCF8F1] p-3 rounded-xl border border-[#D4AF37]/30">
+                  <span className="w-5 h-5 rounded-full bg-[#8F171B] text-white flex items-center justify-center font-bold text-xs shrink-0">4</span>
+                  <div>
+                    <h5 className="font-bold text-[#292321]">Add to Vercel for Live Deployment</h5>
+                    <p className="text-gray-600 mt-0.5">
+                      Add <code className="bg-gray-100 px-1 py-0.5 rounded font-mono">CLOUDINARY_CLOUD_NAME</code>, <code className="bg-gray-100 px-1 py-0.5 rounded font-mono">CLOUDINARY_API_KEY</code>, and <code className="bg-gray-100 px-1 py-0.5 rounded font-mono">CLOUDINARY_API_SECRET</code> to your Vercel Environment Variables.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Test Connection Form */}
+            <div className="bg-white p-5 rounded-2xl border border-[#D4AF37]/40 shadow-xs space-y-4">
+              <div className="border-b pb-3">
+                <h4 className="font-serif text-lg font-bold text-[#292321]">Connect & Verify Cloudinary</h4>
+                <p className="text-xs text-gray-500">
+                  Configure your credentials directly in this preview session:
+                </p>
+              </div>
+
+              {cloudinaryConfigMsg && (
+                <div className={`p-3 rounded-lg text-xs flex items-center gap-2 ${
+                  cloudinaryConfigMsg.type === 'error'
+                    ? 'bg-red-50 text-red-800 border border-red-200'
+                    : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                }`}>
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{cloudinaryConfigMsg.text}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleSaveCloudinaryConfig} className="space-y-3 text-xs">
+                <div>
+                  <label className="block font-bold text-[#292321] uppercase mb-1">
+                    Cloud Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. natesa-jewels or dx3abc12"
+                    value={cloudinaryNameInput}
+                    onChange={(e) => setCloudinaryNameInput(e.target.value)}
+                    className="w-full bg-[#FCF8F1] border border-[#D4AF37]/50 rounded-xl px-3 py-2 font-mono text-xs"
+                  />
+                  <span className="text-[10px] text-gray-500 mt-1 block">
+                    Found on Cloudinary Dashboard → Account Details → Cloud name
+                  </span>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-[#292321] uppercase mb-1">
+                    API Key *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. 123456789012345"
+                    value={cloudinaryKeyInput}
+                    onChange={(e) => setCloudinaryKeyInput(e.target.value)}
+                    className="w-full bg-[#FCF8F1] border border-[#D4AF37]/50 rounded-xl px-3 py-2 font-mono text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-[#292321] uppercase mb-1">
+                    API Secret *
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    placeholder="Enter Cloudinary API Secret"
+                    value={cloudinarySecretInput}
+                    onChange={(e) => setCloudinarySecretInput(e.target.value)}
+                    className="w-full bg-[#FCF8F1] border border-[#D4AF37]/50 rounded-xl px-3 py-2 font-mono text-xs"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={cloudinarySaving}
+                  className="w-full bg-[#8F171B] text-white hover:bg-[#580E11] py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 cursor-pointer shadow-xs disabled:opacity-50"
+                >
+                  {cloudinarySaving ? (
+                    <RefreshCw className="w-4 h-4 animate-spin text-[#D4AF37]" />
+                  ) : (
+                    <CheckCircle2 className="w-4 h-4 text-[#D4AF37]" />
+                  )}
+                  <span>{cloudinarySaving ? 'Pinging Cloudinary API...' : 'Save & Verify Cloudinary'}</span>
+                </button>
+              </form>
+            </div>
+          </div>
+
+          {/* Test Image Upload Card */}
+          <div className="bg-white p-5 rounded-2xl border border-[#D4AF37]/40 shadow-xs space-y-3">
+            <div className="border-b pb-3">
+              <h4 className="font-serif text-lg font-bold text-[#292321]">Test Image Upload to Cloudinary CDN</h4>
+              <p className="text-xs text-gray-500">
+                Upload a sample jewellery image to test if the backend uploads directly to your Cloudinary storage:
+              </p>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+              <label className="bg-[#8F171B] hover:bg-[#580E11] text-white px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer transition-colors shadow-xs">
+                <Upload className="w-4 h-4 text-[#D4AF37]" />
+                <span>{testUploadLoading ? 'Uploading to CDN...' : 'Choose Test Image & Upload'}</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleTestImageUpload}
+                  disabled={testUploadLoading}
+                  className="hidden"
+                />
+              </label>
+
+              <span className="text-xs text-gray-500">
+                Supports PNG, JPG, WEBP up to 10MB.
+              </span>
+            </div>
+
+            {testUploadError && (
+              <div className="p-3 bg-red-50 border border-red-200 text-red-800 rounded-xl text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
+                <span>{testUploadError}</span>
+              </div>
+            )}
+
+            {testUploadResult && (
+              <div className="mt-3 p-4 bg-emerald-50 border border-emerald-300 rounded-xl space-y-3">
+                <div className="flex items-center gap-2 text-emerald-800 text-xs font-bold">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  <span>Image Uploaded Successfully! Hosted on: {testUploadResult.cloud_name || 'Cloudinary'}</span>
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-center gap-4">
+                  <img
+                    src={testUploadResult.url}
+                    alt="Uploaded to Cloudinary"
+                    className="w-24 h-24 object-cover rounded-lg border border-[#D4AF37]/40 shadow-xs"
+                  />
+                  <div className="space-y-1 w-full overflow-hidden">
+                    <span className="text-[10px] uppercase font-bold text-gray-600">Secure CDN URL:</span>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        readOnly
+                        value={testUploadResult.url}
+                        className="w-full bg-white border border-gray-200 rounded px-2 py-1 text-xs font-mono select-all"
+                      />
+                      <button
+                        onClick={() => copyToClipboard(testUploadResult.url, 'uploaded_url')}
+                        className="bg-white border hover:bg-gray-50 px-2 py-1 rounded text-xs shrink-0 cursor-pointer"
+                      >
+                        {copiedVarName === 'uploaded_url' ? 'Copied' : 'Copy'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* PRODUCT MODAL */}
       {showProductModal && editingProduct && (
         <div className="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
@@ -1387,12 +1787,25 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   onChange={(e) => setEditingProduct({ ...editingProduct, image_url: e.target.value })}
                   className="w-full bg-white border rounded px-3 py-2 font-mono text-xs mb-1"
                 />
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => handleFileUpload(e, 'product')}
-                  className="text-xs"
-                />
+                <div className="flex items-center gap-2 mt-1">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => handleFileUpload(e, 'product')}
+                    disabled={imageUploadLoading}
+                    className="text-xs file:mr-2 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-[#8F171B] file:text-white hover:file:bg-[#580E11] file:cursor-pointer"
+                  />
+                  {imageUploadLoading && (
+                    <span className="text-[11px] text-[#8F171B] font-bold flex items-center gap-1 animate-pulse">
+                      <RefreshCw className="w-3 h-3 animate-spin" /> Uploading to CDN...
+                    </span>
+                  )}
+                </div>
+                {editingProduct.image_url?.includes('cloudinary.com') && (
+                  <span className="text-[10px] text-emerald-700 font-semibold block mt-1">
+                    ✓ Hosted on Cloudinary CDN
+                  </span>
+                )}
               </div>
 
               <div className="flex gap-2 pt-3">
@@ -1465,12 +1878,25 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   onChange={(e) => setEditingCategory({ ...editingCategory, banner_image_url: e.target.value })}
                   className="w-full bg-white border rounded px-3 py-2 font-mono text-xs mb-1"
                 />
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => handleFileUpload(e, 'category')}
-                  className="text-xs"
-                />
+                <div className="flex items-center gap-2 mt-1">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => handleFileUpload(e, 'category')}
+                    disabled={imageUploadLoading}
+                    className="text-xs file:mr-2 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-[#8F171B] file:text-white hover:file:bg-[#580E11] file:cursor-pointer"
+                  />
+                  {imageUploadLoading && (
+                    <span className="text-[11px] text-[#8F171B] font-bold flex items-center gap-1 animate-pulse">
+                      <RefreshCw className="w-3 h-3 animate-spin" /> Uploading to CDN...
+                    </span>
+                  )}
+                </div>
+                {editingCategory.banner_image_url?.includes('cloudinary.com') && (
+                  <span className="text-[10px] text-emerald-700 font-semibold block mt-1">
+                    ✓ Hosted on Cloudinary CDN
+                  </span>
+                )}
               </div>
 
               <div className="flex gap-2 pt-3">

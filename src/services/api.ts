@@ -1,4 +1,4 @@
-import { AdminUser, Category, Enquiry, EnvStatus, Order, OrderStatus, Product, RateSettings, SupabaseLiveStatus } from '../types';
+import { AdminUser, Category, CloudinaryConfig, CloudinaryLiveStatus, Enquiry, EnvStatus, Order, OrderStatus, Product, RateSettings, SupabaseLiveStatus } from '../types';
 
 async function fetchJSON<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, {
@@ -151,5 +151,14 @@ export const api = {
   getSupabaseSchema: async (): Promise<string> => {
     const res = await fetch('/api/supabase/schema');
     return res.text();
-  }
+  },
+
+  // Cloudinary Status & Config
+  getCloudinaryStatus: (): Promise<CloudinaryLiveStatus> => fetchJSON<CloudinaryLiveStatus>('/api/cloudinary/status'),
+
+  saveCloudinaryConfig: (config: CloudinaryConfig): Promise<{ success: boolean; message: string; cloud_name: string }> =>
+    fetchJSON('/api/cloudinary/config', {
+      method: 'POST',
+      body: JSON.stringify(config)
+    })
 };
