@@ -4,10 +4,9 @@ import { Logo } from './Logo';
 
 interface FooterProps {
   onNavigateTab: (tab: string) => void;
-  onOpenAdmin: () => void;
 }
 
-export const Footer: React.FC<FooterProps> = ({ onNavigateTab, onOpenAdmin }) => {
+export const Footer: React.FC<FooterProps> = ({ onNavigateTab }) => {
   return (
     <footer className="bg-[#292321] text-[#FCF8F1] border-t-2 border-[#D4AF37]/50 pt-12 pb-8 w-full">
       <div className="max-w-[1440px] 2xl:max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-10 space-y-12 w-full">
@@ -155,12 +154,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigateTab, onOpenAdmin }) =>
 
             <div className="pt-1 flex items-center justify-between text-gray-400 text-xs">
               <span>Email: natesajewellery@gmail.com</span>
-              <button
-                onClick={onOpenAdmin}
-                className="text-[#D4AF37] hover:underline font-medium cursor-pointer"
-              >
-                Administrator Login
-              </button>
+              <span>Daily: 9:30 AM – 9:00 PM</span>
             </div>
           </div>
 
@@ -174,9 +168,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigateTab, onOpenAdmin }) =>
           <div className="flex gap-4">
             <button onClick={() => onNavigateTab('about')} className="hover:text-white cursor-pointer">Hallmark Guarantee</button>
             <button onClick={() => onNavigateTab('contact')} className="hover:text-white cursor-pointer">Custom Orders</button>
-            <button onClick={onOpenAdmin} className="text-[#D4AF37] hover:text-white font-semibold cursor-pointer">
-              Admin Portal
-            </button>
+            <button onClick={() => onNavigateTab('tracking')} className="hover:text-white cursor-pointer">Order Tracking</button>
           </div>
         </div>
 

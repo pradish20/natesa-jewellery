@@ -602,24 +602,14 @@ app.get('/api/supabase/schema', (req: Request, res: Response) => {
 
 // Admin Login Route (Verifies against Supabase admin_users)
 app.post('/api/admin/login', async (req: Request, res: Response) => {
-  const { email, password, pin } = req.body;
-
-  // PIN legacy fallback
-  if (pin && (pin === 'natesa123' || pin === 'admin' || pin === '635001')) {
-    return res.json({
-      success: true,
-      user: {
-        id: 'admin-pin',
-        email: 'natesajewellery@gmail.com',
-        name: 'Natesa Administrator',
-        role: 'super_admin'
-      },
-      source: 'pin_fallback'
-    });
-  }
+  const { email, password } = req.body;
 
   const cleanEmail = (email || '').toLowerCase().trim();
   const cleanPassword = (password || '').trim();
+
+  if (!cleanEmail || !cleanPassword) {
+    return res.status(400).json({ error: 'Admin email and password are required.' });
+  }
 
   // Try checking in Supabase admin_users table
   if (supabase) {
@@ -650,7 +640,7 @@ app.post('/api/admin/login', async (req: Request, res: Response) => {
             source: 'supabase_database'
           });
         } else {
-          return res.status(401).json({ error: 'Invalid password. Please check your credentials.' });
+          return res.status(401).json({ error: 'Invalid email or password.' });
         }
       }
 
@@ -702,7 +692,7 @@ app.post('/api/admin/login', async (req: Request, res: Response) => {
     });
   }
 
-  return res.status(401).json({ error: 'Invalid email or password. Default is natesajewellery@gmail.com / natesa123' });
+  return res.status(401).json({ error: 'Invalid email or password.' });
 });
 
 // List Admin Users

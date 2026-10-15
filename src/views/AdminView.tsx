@@ -14,6 +14,7 @@ interface AdminViewProps {
   orders: Order[];
   rates: RateSettings;
   onRefreshData: () => void;
+  onExitAdmin?: () => void;
 }
 
 export const AdminView: React.FC<AdminViewProps> = ({
@@ -21,31 +22,53 @@ export const AdminView: React.FC<AdminViewProps> = ({
   categories,
   orders,
   rates,
-  onRefreshData
+  onRefreshData,
+  onExitAdmin
 }) => {
-  // Authentication State
+  // Authentication State (Session-only: ends automatically when admin page is exited)
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     try {
-      return localStorage.getItem('natesa_admin_auth') === 'true';
+      return sessionStorage.getItem('natesa_admin_auth') === 'true';
     } catch {
       return false;
     }
   });
   const [currentUser, setCurrentUser] = useState<AdminUser | null>(() => {
     try {
-      const saved = localStorage.getItem('natesa_admin_user');
+      const saved = sessionStorage.getItem('natesa_admin_user');
       return saved ? JSON.parse(saved) : null;
     } catch {
       return null;
     }
   });
 
-  const [adminEmail, setAdminEmail] = useState<string>('natesajewellery@gmail.com');
-  const [adminPassword, setAdminPassword] = useState<string>('natesa123');
+  // Automatically end session when admin portal is exited or unmounted
+  useEffect(() => {
+    const endSession = () => {
+      try {
+        sessionStorage.removeItem('natesa_admin_auth');
+        sessionStorage.removeItem('natesa_admin_user');
+        localStorage.removeItem('natesa_admin_auth');
+        localStorage.removeItem('natesa_admin_user');
+      } catch {
+        // Ignore storage errors
+      }
+    };
+
+    window.addEventListener('beforeunload', endSession);
+    window.addEventListener('pagehide', endSession);
+
+    return () => {
+      endSession();
+      window.removeEventListener('beforeunload', endSession);
+      window.removeEventListener('pagehide', endSession);
+    };
+  }, []);
+
+  const [adminEmail, setAdminEmail] = useState<string>('');
+  const [adminPassword, setAdminPassword] = useState<string>('');
   const [authError, setAuthError] = useState<string>('');
   const [loginLoading, setLoginLoading] = useState<boolean>(false);
-  const [loginMode, setLoginMode] = useState<'credentials' | 'pin'>('credentials');
-  const [adminPin, setAdminPin] = useState<string>('');
 
   // Active Admin Tab
   const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'categories' | 'orders' | 'rates' | 'supabase' | 'cloudinary'>('overview');
@@ -166,21 +189,27 @@ export const AdminView: React.FC<AdminViewProps> = ({
   // Handle Login via Supabase backend
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!adminEmail.trim() || !adminPassword.trim()) {
+      setAuthError('Please enter both admin email and password.');
+      return;
+    }
+
     setLoginLoading(true);
     setAuthError('');
 
     try {
-      const payload = loginMode === 'pin'
-        ? { pin: adminPin }
-        : { email: adminEmail, password: adminPassword };
-
-      const res = await api.adminLogin(payload);
+      const res = await api.adminLogin({
+        email: adminEmail.trim(),
+        password: adminPassword.trim()
+      });
       if (res.success && res.user) {
         setIsAuthenticated(true);
         setCurrentUser(res.user);
         try {
-          localStorage.setItem('natesa_admin_auth', 'true');
-          localStorage.setItem('natesa_admin_user', JSON.stringify(res.user));
+          sessionStorage.setItem('natesa_admin_auth', 'true');
+          sessionStorage.setItem('natesa_admin_user', JSON.stringify(res.user));
+          localStorage.removeItem('natesa_admin_auth');
+          localStorage.removeItem('natesa_admin_user');
         } catch {
           // Ignore storage restrictions
         }
@@ -197,11 +226,18 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const handleLogout = () => {
     setIsAuthenticated(false);
     setCurrentUser(null);
+    setAdminEmail('');
+    setAdminPassword('');
     try {
+      sessionStorage.removeItem('natesa_admin_auth');
+      sessionStorage.removeItem('natesa_admin_user');
       localStorage.removeItem('natesa_admin_auth');
       localStorage.removeItem('natesa_admin_user');
     } catch {
       // Ignore
+    }
+    if (onExitAdmin) {
+      onExitAdmin();
     }
   };
 
@@ -434,120 +470,80 @@ export const AdminView: React.FC<AdminViewProps> = ({
   // ---------------- LOGIN SCREEN ----------------
   if (!isAuthenticated) {
     return (
-      <div className="max-w-md mx-auto px-3 sm:px-4 py-8 sm:py-16 w-full max-w-full">
-        <div className="bg-[#FCF8F1] rounded-2xl border-2 border-[#D4AF37]/50 p-5 sm:p-8 shadow-2xl space-y-5 text-center w-full">
-          <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-[#8F171B] text-[#EBDCC5] flex items-center justify-center mx-auto border-2 border-[#D4AF37]">
-            <Lock className="w-7 h-7 sm:w-8 sm:h-8" />
+      <div className="min-h-[75vh] flex items-center justify-center px-4 py-12">
+        <div className="w-full max-w-sm bg-white rounded-2xl border border-[#D4AF37]/50 p-6 sm:p-8 shadow-xl space-y-6 text-center">
+          <div className="w-14 h-14 rounded-full bg-[#8F171B] text-[#D4AF37] flex items-center justify-center mx-auto shadow-md">
+            <Lock className="w-7 h-7" />
           </div>
 
           <div>
-            <span className="text-[10px] font-bold text-[#8F171B] uppercase tracking-widest block">ADMINISTRATOR PORTAL</span>
-            <h1 className="font-serif text-xl sm:text-2xl font-bold text-[#292321]">Natesa Jewellery Management</h1>
-            <p className="text-xs text-gray-500 font-light mt-1">Authenticate using your Supabase administrative credentials.</p>
-          </div>
-
-          {/* Supabase Status Pill on Login */}
-          <div className="bg-white/80 border border-[#D4AF37]/40 rounded-xl p-2.5 flex items-center justify-between text-xs text-left">
-            <div className="flex items-center gap-2">
-              <Database className="w-4 h-4 text-[#8F171B]" />
-              <div>
-                <span className="font-semibold block text-[#292321]">Supabase Database</span>
-                <span className="text-[10px] text-gray-500">
-                  {supabaseStatus?.connected
-                    ? 'Connected • Storing credentials & catalog'
-                    : 'Configurable in settings'}
-                </span>
-              </div>
-            </div>
-            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-              supabaseStatus?.connected ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
-            }`}>
-              {supabaseStatus?.connected ? 'Online' : 'Standby'}
-            </span>
-          </div>
-
-          {/* Toggle between Credentials and Passcode PIN */}
-          <div className="flex border border-[#D4AF37]/30 rounded-lg p-0.5 bg-white text-xs font-semibold">
-            <button
-              type="button"
-              onClick={() => setLoginMode('credentials')}
-              className={`flex-1 py-1.5 rounded-md transition-all ${loginMode === 'credentials' ? 'bg-[#8F171B] text-white' : 'text-gray-600'}`}
-            >
-              Email & Password
-            </button>
-            <button
-              type="button"
-              onClick={() => setLoginMode('pin')}
-              className={`flex-1 py-1.5 rounded-md transition-all ${loginMode === 'pin' ? 'bg-[#8F171B] text-white' : 'text-gray-600'}`}
-            >
-              Quick Passcode
-            </button>
+            <h1 className="font-serif text-2xl font-bold text-[#292321]">Admin Portal</h1>
+            <p className="text-xs text-gray-500 mt-1">Sign in with your admin credentials</p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-4 text-left">
             {authError && (
-              <div className="bg-red-50 border border-red-200 text-[#8F171B] p-3 rounded-lg text-xs flex items-center gap-2">
+              <div className="bg-red-50 border border-red-200 text-[#8F171B] p-3 rounded-xl text-xs flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 shrink-0" />
                 <span>{authError}</span>
               </div>
             )}
 
-            {loginMode === 'credentials' ? (
-              <>
-                <div>
-                  <label className="block text-xs font-bold text-[#292321] uppercase mb-1">Admin Email</label>
-                  <input
-                    type="email"
-                    required
-                    placeholder="natesajewellery@gmail.com"
-                    value={adminEmail}
-                    onChange={(e) => setAdminEmail(e.target.value)}
-                    className="w-full bg-white border border-[#D4AF37]/50 rounded-xl px-3.5 py-2 text-xs sm:text-sm font-semibold"
-                  />
-                </div>
+            <div>
+              <label className="block text-xs font-bold text-[#292321] uppercase mb-1">
+                Email
+              </label>
+              <input
+                type="email"
+                required
+                autoComplete="email"
+                placeholder="Enter admin email"
+                value={adminEmail}
+                onChange={(e) => setAdminEmail(e.target.value)}
+                className="w-full bg-[#FCF8F1] border border-[#D4AF37]/40 rounded-xl px-3.5 py-2.5 text-sm focus:outline-hidden focus:border-[#8F171B] transition-colors"
+              />
+            </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-[#292321] uppercase mb-1">Admin Password</label>
-                  <input
-                    type="password"
-                    required
-                    placeholder="••••••••"
-                    value={adminPassword}
-                    onChange={(e) => setAdminPassword(e.target.value)}
-                    className="w-full bg-white border border-[#D4AF37]/50 rounded-xl px-3.5 py-2 text-xs sm:text-sm font-semibold font-mono"
-                  />
-                  <span className="text-[10px] text-gray-500 mt-1 block">
-                    Default admin: <code className="bg-gray-100 px-1 py-0.5 rounded">natesa123</code>
-                  </span>
-                </div>
-              </>
-            ) : (
-              <div>
-                <label className="block text-xs font-bold text-[#292321] uppercase mb-1">Passcode / PIN</label>
-                <input
-                  type="password"
-                  required
-                  placeholder="Passcode (e.g. natesa123)"
-                  value={adminPin}
-                  onChange={(e) => setAdminPin(e.target.value)}
-                  className="w-full bg-white border border-[#D4AF37]/50 rounded-xl px-3.5 py-2 text-xs sm:text-sm font-semibold font-mono"
-                />
-              </div>
-            )}
+            <div>
+              <label className="block text-xs font-bold text-[#292321] uppercase mb-1">
+                Password
+              </label>
+              <input
+                type="password"
+                required
+                autoComplete="current-password"
+                placeholder="••••••••"
+                value={adminPassword}
+                onChange={(e) => setAdminPassword(e.target.value)}
+                className="w-full bg-[#FCF8F1] border border-[#D4AF37]/40 rounded-xl px-3.5 py-2.5 text-sm focus:outline-hidden focus:border-[#8F171B] transition-colors font-mono"
+              />
+            </div>
 
             <button
               type="submit"
               disabled={loginLoading}
-              className="w-full bg-[#8F171B] text-white hover:bg-[#580E11] py-2.5 sm:py-3 rounded-xl font-bold text-xs transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              className="w-full bg-[#8F171B] text-white hover:bg-[#580E11] py-3 rounded-xl font-bold text-sm transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 mt-2"
             >
               {loginLoading ? (
-                <RefreshCw className="w-4 h-4 animate-spin" />
+                <RefreshCw className="w-4 h-4 animate-spin text-[#D4AF37]" />
               ) : (
                 <KeyRound className="w-4 h-4 text-[#D4AF37]" />
               )}
-              <span>{loginLoading ? 'Verifying with Supabase...' : 'Unlock Admin Console'}</span>
+              <span>{loginLoading ? 'Signing In...' : 'Sign In'}</span>
             </button>
           </form>
+
+          {onExitAdmin && (
+            <div className="pt-2 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={onExitAdmin}
+                className="text-xs text-gray-400 hover:text-[#8F171B] transition-colors cursor-pointer"
+              >
+                ← Return to Storefront
+              </button>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -609,6 +605,16 @@ export const AdminView: React.FC<AdminViewProps> = ({
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loadingStatus ? 'animate-spin' : ''}`} />
           </button>
+
+          {onExitAdmin && (
+            <button
+              onClick={handleLogout}
+              className="text-[11px] bg-white/10 hover:bg-white/20 text-[#EBDCC5] px-2.5 py-1 rounded-md transition-colors cursor-pointer ml-2"
+              title="Exit admin session and return to storefront"
+            >
+              Exit to Store
+            </button>
+          )}
 
           <button
             onClick={handleLogout}

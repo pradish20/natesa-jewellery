@@ -27,8 +27,19 @@ import { calculatePriceBreakdown } from './utils/pricing';
 import { api } from './services/api';
 
 export default function App() {
-  // Navigation
-  const [activeTab, setActiveTab] = useState<string>('home');
+  // Navigation: Check if URL path is /admin
+  const getInitialTab = (): string => {
+    if (typeof window !== 'undefined') {
+      const path = window.location.pathname.toLowerCase().replace(/\/$/, '');
+      const hash = window.location.hash.toLowerCase();
+      if (path === '/admin' || hash === '#/admin' || hash === '#admin') {
+        return 'admin';
+      }
+    }
+    return 'home';
+  };
+
+  const [activeTab, setActiveTab] = useState<string>(getInitialTab);
   const [selectedCategorySlug, setSelectedCategorySlug] = useState<string | undefined>(undefined);
 
   // Core Data
@@ -103,6 +114,33 @@ export default function App() {
 
   useEffect(() => {
     refreshAllData();
+
+    // Listen for browser URL changes (e.g. typing /admin, back/forward buttons)
+    const handleLocationChange = () => {
+      const path = window.location.pathname.toLowerCase().replace(/\/$/, '');
+      const hash = window.location.hash.toLowerCase();
+      if (path === '/admin' || hash === '#/admin' || hash === '#admin') {
+        setActiveTab('admin');
+      } else {
+        // Exited admin route: clear session
+        try {
+          sessionStorage.removeItem('natesa_admin_auth');
+          sessionStorage.removeItem('natesa_admin_user');
+          localStorage.removeItem('natesa_admin_auth');
+          localStorage.removeItem('natesa_admin_user');
+        } catch {
+          // Ignore
+        }
+        setActiveTab((prev) => (prev === 'admin' ? 'home' : prev));
+      }
+    };
+
+    window.addEventListener('popstate', handleLocationChange);
+    window.addEventListener('hashchange', handleLocationChange);
+    return () => {
+      window.removeEventListener('popstate', handleLocationChange);
+      window.removeEventListener('hashchange', handleLocationChange);
+    };
   }, []);
 
   // Update computed prices in cart whenever rates change
@@ -180,12 +218,35 @@ export default function App() {
 
   // Tab Navigation Helper
   const handleNavigateTab = (tab: string, categorySlug?: string) => {
+    if (activeTab === 'admin' && tab !== 'admin') {
+      try {
+        sessionStorage.removeItem('natesa_admin_auth');
+        sessionStorage.removeItem('natesa_admin_user');
+        localStorage.removeItem('natesa_admin_auth');
+        localStorage.removeItem('natesa_admin_user');
+      } catch {
+        // Ignore
+      }
+    }
+
     setActiveTab(tab);
     if (categorySlug) {
       setSelectedCategorySlug(categorySlug);
     } else {
       setSelectedCategorySlug(undefined);
     }
+
+    // Keep URL clean and sync /admin route
+    if (tab === 'admin') {
+      if (window.location.pathname !== '/admin') {
+        window.history.pushState(null, '', '/admin');
+      }
+    } else {
+      if (window.location.pathname === '/admin') {
+        window.history.pushState(null, '', '/');
+      }
+    }
+
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -210,7 +271,6 @@ export default function App() {
         onOpenCart={() => setIsCartOpen(true)}
         onOpenWishlist={() => setIsWishlistOpen(true)}
         onOpenSearch={() => setIsSearchOpen(true)}
-        onOpenAdmin={() => handleNavigateTab('admin')}
       />
 
       {/* Main View Area */}
@@ -284,6 +344,7 @@ export default function App() {
             orders={orders}
             rates={rates}
             onRefreshData={refreshAllData}
+            onExitAdmin={() => handleNavigateTab('home')}
           />
         )}
       </main>
@@ -291,7 +352,6 @@ export default function App() {
       {/* Footer */}
       <Footer
         onNavigateTab={handleNavigateTab}
-        onOpenAdmin={() => handleNavigateTab('admin')}
       />
 
       {/* Drawers & Modals */}

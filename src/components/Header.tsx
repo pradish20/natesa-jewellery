@@ -12,7 +12,6 @@ interface HeaderProps {
   onOpenCart: () => void;
   onOpenWishlist: () => void;
   onOpenSearch: () => void;
-  onOpenAdmin: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -22,8 +21,7 @@ export const Header: React.FC<HeaderProps> = ({
   setActiveTab,
   onOpenCart,
   onOpenWishlist,
-  onOpenSearch,
-  onOpenAdmin
+  onOpenSearch
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [goldDropdownOpen, setGoldDropdownOpen] = useState(false);
@@ -60,13 +58,6 @@ export const Header: React.FC<HeaderProps> = ({
           <a href="tel:+919443253072" className="hover:text-white transition-colors flex items-center gap-1">
             <Phone className="w-3 h-3 text-[#D4AF37]" /> +91 94432 53072
           </a>
-          <button
-            onClick={onOpenAdmin}
-            className="text-[#D4AF37] hover:text-white transition-colors flex items-center gap-1 font-medium"
-            title="Admin Portal Access"
-          >
-            <Lock className="w-3 h-3 text-[#D4AF37]" /> Admin Portal
-          </button>
         </div>
       </div>
 
@@ -341,12 +332,9 @@ export const Header: React.FC<HeaderProps> = ({
 
           <div className="pt-3 border-t border-[#D4AF37]/20 flex items-center justify-between text-xs text-[#292321]/80">
             <span>Main Branch: Krishnagiri</span>
-            <button
-              onClick={() => { onOpenAdmin(); setMobileMenuOpen(false); }}
-              className="text-[#8F171B] font-semibold hover:underline"
-            >
-              Admin Access →
-            </button>
+            <a href="tel:+919443253072" className="text-[#8F171B] font-semibold hover:underline">
+              +91 94432 53072
+            </a>
           </div>
         </div>
       )}
