@@ -1,5 +1,5 @@
-import React from 'react';
-import { MapPin, Phone, Mail, Instagram, ShieldCheck, Award, Clock } from 'lucide-react';
+import React, { useState } from 'react';
+import { MapPin, Phone, Mail, Instagram, ShieldCheck, Award, Clock, X } from 'lucide-react';
 import { Logo } from './Logo';
 import { StoreContactSettings } from '../types';
 
@@ -9,6 +9,9 @@ interface FooterProps {
 }
 
 export const Footer: React.FC<FooterProps> = ({ storeContact, onNavigateTab }) => {
+  const [termsOpen, setTermsOpen] = useState(false);
+  const [privacyOpen, setPrivacyOpen] = useState(false);
+
   const primaryPhone = storeContact?.phone_primary || '+91 94432 53072';
   const secondaryPhone = storeContact?.phone_secondary || '+91 99444 00666';
   const whatsappPhone = storeContact?.phone_whatsapp || '+91 94432 53072';
@@ -180,18 +183,100 @@ export const Footer: React.FC<FooterProps> = ({ storeContact, onNavigateTab }) =
         </div>
 
         {/* Bottom Copyright Line */}
-        <div className="pt-6 border-t border-gray-800 flex flex-col sm:flex-row justify-between items-center gap-2 text-xs text-gray-400 font-light">
+        <div className="pt-6 border-t border-gray-800 flex flex-col lg:flex-row justify-between items-center gap-4 text-xs text-gray-400 font-light">
           <div>
             © {new Date().getFullYear()} Natesa Jewellery. All Rights Reserved. Crafted with Trust Since Generations.
           </div>
-          <div className="flex gap-4">
+          <div className="flex flex-wrap items-center gap-4 sm:gap-6">
+            <a
+              href="https://instagram.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[#D4AF37] hover:underline flex items-center gap-1 font-medium"
+            >
+              <Instagram className="w-3.5 h-3.5" />
+              <span>Instagram</span>
+            </a>
+            <button onClick={() => setTermsOpen(true)} className="hover:text-white cursor-pointer underline">Terms & Conditions</button>
+            <button onClick={() => setPrivacyOpen(true)} className="hover:text-white cursor-pointer underline">Privacy Policy</button>
             <button onClick={() => onNavigateTab('about')} className="hover:text-white cursor-pointer">Hallmark Guarantee</button>
-            <button onClick={() => onNavigateTab('contact')} className="hover:text-white cursor-pointer">Custom Orders</button>
             <button onClick={() => onNavigateTab('tracking')} className="hover:text-white cursor-pointer">Order Tracking</button>
           </div>
         </div>
 
       </div>
+
+      {/* Terms & Conditions Modal */}
+      {termsOpen && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
+          <div className="bg-[#FFF9F0] text-[#292321] rounded-xl max-w-2xl w-full p-6 sm:p-8 relative shadow-2xl max-h-[85vh] overflow-y-auto">
+            <button
+              onClick={() => setTermsOpen(false)}
+              className="absolute top-4 right-4 text-gray-500 hover:text-black p-1.5 rounded-full hover:bg-black/5"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <h3 className="font-serif text-2xl font-bold text-[#790F1B] mb-4 border-b border-[#D4AF37]/30 pb-2">
+              Terms & Conditions
+            </h3>
+            <div className="space-y-3 text-xs sm:text-sm text-gray-700 leading-relaxed font-sans">
+              <p>Welcome to Natesa Jewellery. By accessing or purchasing from our website or showrooms in Krishnagiri and Dharmapuri, you agree to abide by the following terms and conditions:</p>
+              <h4 className="font-bold text-[#790F1B]">1. Gold & Silver Pricing & Rates</h4>
+              <p>Gold and silver item pricing is computed dynamically based on daily bullion market rates (22k gold, 24k gold, and 92.5 sterling silver) plus making charges and applicable GST (3%). Rates fluctuate in accordance with international bullion exchanges.</p>
+              <h4 className="font-bold text-[#790F1B]">2. Hallmarking & Purity</h4>
+              <p>All gold jewellery sold by Natesa Jewellery is 100% BIS 916 hallmarked. Silver articles carry standard 92.5 purity hallmarks. Authenticity certificates are issued with every precious purchase.</p>
+              <h4 className="font-bold text-[#790F1B]">3. Orders & Delivery</h4>
+              <p>Orders are dispatched via fully insured secure transit couriers with tamper-evident packaging. Delivery timelines vary from 3 to 7 working days depending on destination PIN codes.</p>
+              <h4 className="font-bold text-[#790F1B]">4. Return & Exchange</h4>
+              <p>Items may be exchanged or returned in accordance with our showroom policy within 7 days of delivery, provided original hallmark tags and certification are intact.</p>
+            </div>
+            <div className="mt-6 pt-4 border-t border-[#D4AF37]/30 text-right">
+              <button
+                onClick={() => setTermsOpen(false)}
+                className="bg-[#790F1B] text-[#FFF9F0] px-5 py-2 rounded-lg text-xs font-semibold hover:bg-[#580E11]"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Privacy Policy Modal */}
+      {privacyOpen && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
+          <div className="bg-[#FFF9F0] text-[#292321] rounded-xl max-w-2xl w-full p-6 sm:p-8 relative shadow-2xl max-h-[85vh] overflow-y-auto">
+            <button
+              onClick={() => setPrivacyOpen(false)}
+              className="absolute top-4 right-4 text-gray-500 hover:text-black p-1.5 rounded-full hover:bg-black/5"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <h3 className="font-serif text-2xl font-bold text-[#790F1B] mb-4 border-b border-[#D4AF37]/30 pb-2">
+              Privacy Policy
+            </h3>
+            <div className="space-y-3 text-xs sm:text-sm text-gray-700 leading-relaxed font-sans">
+              <p>Natesa Jewellery respects your privacy and is committed to protecting your personal information. This Privacy Policy outlines how we collect, use, and safeguard your data:</p>
+              <h4 className="font-bold text-[#790F1B]">1. Information Collection</h4>
+              <p>When placing orders, tracking shipments, or submitting inquiries, we collect necessary contact information including your name, phone number, delivery address, and email address.</p>
+              <h4 className="font-bold text-[#790F1B]">2. Use of Information</h4>
+              <p>Your details are used strictly for order fulfillment, insured shipping, customer support, and communicating updates regarding your purchase.</p>
+              <h4 className="font-bold text-[#790F1B]">3. Data Security</h4>
+              <p>We implement secure encryption protocols and maintain strict confidentiality. We never sell, rent, or share your personal data with third-party marketers.</p>
+              <h4 className="font-bold text-[#790F1B]">4. Contact Us</h4>
+              <p>If you have any questions regarding our privacy practices, please contact our Krishnagiri or Dharmapuri showrooms or email us at {supportEmail}.</p>
+            </div>
+            <div className="mt-6 pt-4 border-t border-[#D4AF37]/30 text-right">
+              <button
+                onClick={() => setPrivacyOpen(false)}
+                className="bg-[#790F1B] text-[#FFF9F0] px-5 py-2 rounded-lg text-xs font-semibold hover:bg-[#580E11]"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </footer>
   );
 };
