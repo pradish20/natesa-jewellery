@@ -147,6 +147,7 @@ export interface SupabaseLiveStatus {
   url?: string;
   error?: string;
   counts: SupabaseTableCounts;
+  missing_tables?: string[];
 }
 
 export interface CloudinaryConfig {

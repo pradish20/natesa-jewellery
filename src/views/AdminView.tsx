@@ -1027,36 +1027,100 @@ export const AdminView: React.FC<AdminViewProps> = ({
               </div>
             </div>
 
+            {/* Missing Tables Notice Banner */}
+            {(supabaseStatus?.counts.categories === null || (supabaseStatus?.missing_tables && supabaseStatus.missing_tables.length > 0)) && (
+              <div className="bg-amber-50 border-2 border-amber-400 p-5 rounded-2xl shadow-sm space-y-4">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-amber-200 pb-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold shrink-0">
+                      <AlertCircle className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="font-serif text-base sm:text-lg font-bold text-amber-900">
+                        Supabase Tables Not Formed Yet
+                      </h4>
+                      <p className="text-xs text-amber-800">
+                        The tables (<span className="font-mono font-semibold">categories, products, rates, orders, admin_users</span>) have not been created in your Supabase project yet.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={handleCopySql}
+                      className="bg-[#8F171B] hover:bg-[#580E11] text-white px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer transition-colors"
+                    >
+                      {sqlCopied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4 text-[#D4AF37]" />}
+                      <span>{sqlCopied ? 'SQL Copied!' : 'Copy SQL Script'}</span>
+                    </button>
+
+                    <a
+                      href="https://supabase.com/dashboard/project/_/sql/new"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="bg-white hover:bg-gray-50 border border-amber-400 text-amber-900 px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors"
+                    >
+                      <span>Open SQL Editor</span>
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </a>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                  <div className="bg-white p-3 rounded-xl border border-amber-200">
+                    <span className="font-bold text-[#8F171B] block mb-1">Step 1: Copy SQL</span>
+                    <p className="text-gray-600 text-[11px]">Click <strong>"Copy SQL Script"</strong> above or from the box below.</p>
+                  </div>
+                  <div className="bg-white p-3 rounded-xl border border-amber-200">
+                    <span className="font-bold text-[#8F171B] block mb-1">Step 2: Paste in Supabase</span>
+                    <p className="text-gray-600 text-[11px]">Open Supabase Dashboard → <strong>SQL Editor</strong> → New query.</p>
+                  </div>
+                  <div className="bg-white p-3 rounded-xl border border-amber-200">
+                    <span className="font-bold text-[#8F171B] block mb-1">Step 3: Click RUN</span>
+                    <p className="text-gray-600 text-[11px]">Click <strong>"RUN"</strong>. Tables and categories form in ~2 seconds!</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Live Table Counters Grid */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div className="bg-[#FCF8F1] border border-[#D4AF37]/40 rounded-xl p-3 text-center">
+              <div className={`border rounded-xl p-3 text-center ${
+                supabaseStatus?.counts.admin_users !== null ? 'bg-[#FCF8F1] border-[#D4AF37]/40' : 'bg-amber-50/70 border-amber-300'
+              }`}>
                 <span className="text-[10px] font-bold text-[#8F171B] uppercase block">Admin Credentials</span>
-                <span className="text-xl font-bold font-mono text-[#292321]">
-                  {supabaseStatus?.counts.admin_users !== null ? `${supabaseStatus?.counts.admin_users} in Supabase` : 'Local'}
+                <span className="text-base sm:text-lg font-bold font-mono text-[#292321] block my-0.5">
+                  {supabaseStatus?.counts.admin_users !== null ? `${supabaseStatus?.counts.admin_users} in Supabase` : '⚠️ Not Formed'}
                 </span>
                 <span className="text-[10px] text-gray-500 block">table: admin_users</span>
               </div>
 
-              <div className="bg-[#FCF8F1] border border-[#D4AF37]/40 rounded-xl p-3 text-center">
+              <div className={`border rounded-xl p-3 text-center ${
+                supabaseStatus?.counts.products !== null ? 'bg-[#FCF8F1] border-[#D4AF37]/40' : 'bg-amber-50/70 border-amber-300'
+              }`}>
                 <span className="text-[10px] font-bold text-[#8F171B] uppercase block">Products</span>
-                <span className="text-xl font-bold font-mono text-[#292321]">
-                  {supabaseStatus?.counts.products !== null ? `${supabaseStatus?.counts.products} in Supabase` : `${products.length} Local`}
+                <span className="text-base sm:text-lg font-bold font-mono text-[#292321] block my-0.5">
+                  {supabaseStatus?.counts.products !== null ? `${supabaseStatus?.counts.products} in Supabase` : '⚠️ Not Formed'}
                 </span>
                 <span className="text-[10px] text-gray-500 block">table: products</span>
               </div>
 
-              <div className="bg-[#FCF8F1] border border-[#D4AF37]/40 rounded-xl p-3 text-center">
+              <div className={`border rounded-xl p-3 text-center ${
+                supabaseStatus?.counts.categories !== null ? 'bg-[#FCF8F1] border-[#D4AF37]/40' : 'bg-amber-50/70 border-amber-300'
+              }`}>
                 <span className="text-[10px] font-bold text-[#8F171B] uppercase block">Categories</span>
-                <span className="text-xl font-bold font-mono text-[#292321]">
-                  {supabaseStatus?.counts.categories !== null ? `${supabaseStatus?.counts.categories} in Supabase` : `${categories.length} Local`}
+                <span className="text-base sm:text-lg font-bold font-mono text-[#292321] block my-0.5">
+                  {supabaseStatus?.counts.categories !== null ? `${supabaseStatus?.counts.categories} in Supabase` : '⚠️ Not Formed'}
                 </span>
                 <span className="text-[10px] text-gray-500 block">table: categories</span>
               </div>
 
-              <div className="bg-[#FCF8F1] border border-[#D4AF37]/40 rounded-xl p-3 text-center">
+              <div className={`border rounded-xl p-3 text-center ${
+                supabaseStatus?.counts.rates ? 'bg-[#FCF8F1] border-[#D4AF37]/40' : 'bg-amber-50/70 border-amber-300'
+              }`}>
                 <span className="text-[10px] font-bold text-[#8F171B] uppercase block">Gold & Silver Rates</span>
-                <span className="text-xl font-bold font-mono text-[#292321]">
-                  {supabaseStatus?.counts.rates ? 'Synced' : 'Default'}
+                <span className="text-base sm:text-lg font-bold font-mono text-[#292321] block my-0.5">
+                  {supabaseStatus?.counts.rates ? '✓ Live Synced' : '⚠️ Not Formed'}
                 </span>
                 <span className="text-[10px] text-gray-500 block">table: rates</span>
               </div>

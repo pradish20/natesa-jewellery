@@ -241,6 +241,9 @@ initCloudinaryClient();
 const SUPABASE_SCHEMA_SQL = `-- Natesa Jewellery Supabase Database Schema
 -- Run this in your Supabase SQL Editor (https://supabase.com/dashboard/project/_/sql)
 
+-- 0. Drop old conflicting tables from earlier/test setups (ensures clean, matching schema)
+DROP TABLE IF EXISTS categories, products, rates, orders, admin_users CASCADE;
+
 -- 1. Admin Users Table
 CREATE TABLE IF NOT EXISTS admin_users (
   id TEXT PRIMARY KEY,
@@ -267,6 +270,13 @@ CREATE TABLE IF NOT EXISTS categories (
   display_order INT DEFAULT 0
 );
 
+-- Ensure columns exist even if table was created previously with an older schema
+ALTER TABLE categories ADD COLUMN IF NOT EXISTS name TEXT;
+ALTER TABLE categories ADD COLUMN IF NOT EXISTS slug TEXT;
+ALTER TABLE categories ADD COLUMN IF NOT EXISTS description TEXT;
+ALTER TABLE categories ADD COLUMN IF NOT EXISTS banner_image_url TEXT;
+ALTER TABLE categories ADD COLUMN IF NOT EXISTS display_order INT DEFAULT 0;
+
 -- 3. Products Table
 CREATE TABLE IF NOT EXISTS products (
   id TEXT PRIMARY KEY,
@@ -285,6 +295,22 @@ CREATE TABLE IF NOT EXISTS products (
   in_stock BOOLEAN DEFAULT true,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Ensure products columns exist even if created previously
+ALTER TABLE products ADD COLUMN IF NOT EXISTS name TEXT;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS slug TEXT;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS category_slug TEXT;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS description TEXT;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS metal_type TEXT DEFAULT '22k_gold';
+ALTER TABLE products ADD COLUMN IF NOT EXISTS net_weight NUMERIC DEFAULT 0;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS wastage_percent NUMERIC DEFAULT 8.5;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS making_charges NUMERIC DEFAULT 4500;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS purity_hallmark TEXT DEFAULT 'BIS 916 22K Hallmarked';
+ALTER TABLE products ADD COLUMN IF NOT EXISTS image_url TEXT;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS secondary_image_url TEXT;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS is_featured BOOLEAN DEFAULT false;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS in_stock BOOLEAN DEFAULT true;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
 
 -- 4. Rates Table
 CREATE TABLE IF NOT EXISTS rates (
@@ -321,6 +347,66 @@ CREATE TABLE IF NOT EXISTS orders (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Ensure orders columns exist even if table was created previously
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS customer_name TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS email TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS phone TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS address TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS city TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS state TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS pincode TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS items JSONB;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS subtotal NUMERIC DEFAULT 0;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS gst_total NUMERIC DEFAULT 0;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS grand_total NUMERIC DEFAULT 0;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_method TEXT DEFAULT 'COD';
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_status TEXT DEFAULT 'Pending';
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'Pending';
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS tracking_number TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS courier_name TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+
+-- Seed Initial Categories
+INSERT INTO categories (id, name, slug, description, banner_image_url, display_order)
+VALUES
+('cat-1', 'Gold Necklaces & Malas', 'gold-necklaces-malas', 'Exquisite 22K gold bridal harams, kasu malas, mango malas, and grand choker necklaces.', 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?auto=format&fit=crop&w=1200&q=80', 1),
+('cat-2', 'Antique Jhumkas & Studs', 'antique-jhumkas-studs', 'Royal temple antique gold jhumka earrings with ruby, emerald, and freshwater pearl drops.', 'https://images.unsplash.com/photo-1630019852942-f89202989a59?auto=format&fit=crop&w=1200&q=80', 2),
+('cat-3', 'Temple Kadas & Bangles', 'temple-kadas-bangles', 'Intricately embossed Lakshmi & peacock motif gold kadas, valaiyal sets, and adjustable bangles.', 'https://images.unsplash.com/photo-1611591475197-e81816e88514?auto=format&fit=crop&w=1200&q=80', 3),
+('cat-4', 'Gold Cocktail & Navratna Rings', 'gold-cocktail-navratna-rings', 'Statement cocktail rings featuring Navratna gemstones, Kundan filigree, and hallmarked 22K gold.', 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?auto=format&fit=crop&w=1200&q=80', 4),
+('cat-5', '92.5 Sterling Silver Kolusu', 'silver-kolusu-anklets', 'Handcrafted 92.5 sterling silver anklets (Kolusu), silver pooja items, and silver waist chains.', 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?auto=format&fit=crop&w=1200&q=80', 5)
+ON CONFLICT (id) DO UPDATE SET
+  name = EXCLUDED.name,
+  slug = EXCLUDED.slug,
+  description = EXCLUDED.description,
+  banner_image_url = EXCLUDED.banner_image_url,
+  display_order = EXCLUDED.display_order;
+
+-- Seed Initial Products
+INSERT INTO products (id, name, slug, category_slug, description, metal_type, net_weight, wastage_percent, making_charges, purity_hallmark, image_url, is_featured, in_stock)
+VALUES
+('prod-1', 'Royal Heritage Kasu Haram Necklace', 'royal-heritage-kasu-haram-necklace', 'gold-necklaces-malas', 'Generations-favorite South Indian Kasu Mala embossed with Goddess Lakshmi coins, crowned with Burmese rubies and emerald drops.', '22k_gold', 48.5, 9.5, 2800, 'BIS 916 22K Hallmarked', 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?auto=format&fit=crop&w=800&q=80', true, true),
+('prod-2', 'Guttapusalu Antique Ruby Jhumkas', 'guttapusalu-antique-ruby-jhumkas', 'antique-jhumkas-studs', 'Traditional temple finish antique gold jhumkas adorned with rice pearls, uncut rubies, and floral filigree ear studs.', '22k_gold', 18.2, 8.0, 1500, 'BIS 916 22K Hallmarked', 'https://images.unsplash.com/photo-1630019852942-f89202989a59?auto=format&fit=crop&w=800&q=80', true, true),
+('prod-3', 'Goddess Lakshmi Divine Temple Kada', 'goddess-lakshmi-divine-temple-kada', 'temple-kadas-bangles', 'Heavy handcrafted 22K gold temple kada with 3D Goddess Lakshmi motif flanked by sacred elephants and kemp stone border.', '22k_gold', 32.0, 10.0, 2200, 'BIS 916 22K Hallmarked', 'https://images.unsplash.com/photo-1611591475197-e81816e88514?auto=format&fit=crop&w=800&q=80', true, true),
+('prod-4', 'Imperial Navratna Gold Cocktail Ring', 'imperial-navratna-gold-cocktail-ring', 'gold-cocktail-navratna-rings', 'A masterpiece 9-gemstone Navratna ring set in 22K hallmarked gold with intricate micro-granulation work.', '22k_gold', 9.8, 7.5, 950, 'BIS 916 22K Hallmarked', 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?auto=format&fit=crop&w=800&q=80', true, true),
+('prod-5', '92.5 Pure Silver Traditional Bridal Kolusu', '925-pure-silver-traditional-bridal-kolusu', 'silver-kolusu-anklets', 'Authentic 92.5 Sterling Silver handcrafted anklet pair (Kolusu) with rhythmic silver gungroo bells and floral clasp.', '925_silver', 120.0, 5.0, 850, '92.5 Sterling Silver Certified', 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?auto=format&fit=crop&w=800&q=80', true, true),
+('prod-6', 'Manga Mala Antique Gold Choker', 'manga-mala-antique-gold-choker', 'gold-necklaces-malas', 'Classic Kerala Mango Mala choker set with vibrant kemp stones, crafted in rich antique gold finish.', '22k_gold', 36.4, 9.0, 2100, 'BIS 916 22K Hallmarked', 'https://images.unsplash.com/photo-1602751584552-8ba73aad10e1?auto=format&fit=crop&w=800&q=80', false, true),
+('prod-7', 'Peacock Motif Antique Studs with Drop Pearl', 'peacock-motif-antique-studs-with-drop-pearl', 'antique-jhumkas-studs', 'Hand-carved dancing peacock gold ear studs featuring natural South Sea pearls and emerald eyes.', '22k_gold', 12.5, 8.5, 1100, 'BIS 916 22K Hallmarked', 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?auto=format&fit=crop&w=800&q=80', false, true),
+('prod-8', 'Antique Gold Valaiyal Bangle Set (Pair of 4)', 'antique-gold-valaiyal-bangle-set', 'temple-kadas-bangles', 'Set of 4 traditional Tamil Valaiyal bangles with textured floral borders in 22K yellow gold.', '22k_gold', 52.0, 8.5, 3200, 'BIS 916 22K Hallmarked', 'https://images.unsplash.com/photo-1611591475197-e81816e88514?auto=format&fit=crop&w=800&q=80', false, true),
+('prod-9', '92.5 Silver Pooja Kamatchi Amman Lamp Set', '925-silver-pooja-kamatchi-amman-lamp-set', 'silver-kolusu-anklets', 'Exquisite 92.5 pure silver traditional Kamatchi Amman deepam lamp pair for sacred home rituals.', '925_silver', 250.0, 4.0, 1400, '92.5 Sterling Silver Certified', 'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?auto=format&fit=crop&w=800&q=80', false, true)
+ON CONFLICT (id) DO UPDATE SET
+  name = EXCLUDED.name,
+  slug = EXCLUDED.slug,
+  category_slug = EXCLUDED.category_slug,
+  description = EXCLUDED.description,
+  metal_type = EXCLUDED.metal_type,
+  net_weight = EXCLUDED.net_weight,
+  wastage_percent = EXCLUDED.wastage_percent,
+  making_charges = EXCLUDED.making_charges,
+  purity_hallmark = EXCLUDED.purity_hallmark,
+  image_url = EXCLUDED.image_url,
+  is_featured = EXCLUDED.is_featured,
+  in_stock = EXCLUDED.in_stock;
+
 -- Row Level Security (RLS) Policies
 ALTER TABLE admin_users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE categories ENABLE ROW LEVEL SECURITY;
@@ -328,10 +414,19 @@ ALTER TABLE products ENABLE ROW LEVEL SECURITY;
 ALTER TABLE rates ENABLE ROW LEVEL SECURITY;
 ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Allow all on admin_users" ON admin_users;
 CREATE POLICY "Allow all on admin_users" ON admin_users FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow all on categories" ON categories;
 CREATE POLICY "Allow all on categories" ON categories FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow all on products" ON products;
 CREATE POLICY "Allow all on products" ON products FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow all on rates" ON rates;
 CREATE POLICY "Allow all on rates" ON rates FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow all on orders" ON orders;
 CREATE POLICY "Allow all on orders" ON orders FOR ALL USING (true) WITH CHECK (true);
 `;
 
@@ -372,16 +467,40 @@ async function seedInitialDataToSupabase(): Promise<{ success: boolean; details:
     const errors = [adminErr, catErr, prodErr, rateErr].filter(Boolean);
     if (errors.length > 0) {
       console.warn('Supabase seed encountered notices/errors:', errors);
+      const isMissingTable = errors.some(
+        (e: any) =>
+          e?.code === '42P01' ||
+          e?.code === 'PGRST204' ||
+          e?.code === 'PGRST200' ||
+          e?.message?.toLowerCase().includes('does not exist') ||
+          e?.message?.toLowerCase().includes('not found')
+      );
+
+      const errorMsg = isMissingTable
+        ? 'Tables (categories, products, rates, admin_users) do not exist in your Supabase database yet! Please copy the SQL Schema from the Supabase tab and run it in your Supabase SQL Editor.'
+        : `Supabase sync error: ${errors.map(e => e?.message).join(', ')}`;
+
+      return {
+        success: false,
+        details: {
+          admin_seeded: !adminErr,
+          categories_count: catErr ? 0 : INITIAL_CATEGORIES.length,
+          products_count: prodErr ? 0 : INITIAL_PRODUCTS.length,
+          rates_seeded: !rateErr,
+          errors: errors.map(e => e?.message)
+        },
+        error: errorMsg
+      };
     }
 
     return {
       success: true,
       details: {
-        admin_seeded: !adminErr,
+        admin_seeded: true,
         categories_count: INITIAL_CATEGORIES.length,
         products_count: INITIAL_PRODUCTS.length,
-        rates_seeded: !rateErr,
-        errors: errors.map(e => e?.message)
+        rates_seeded: true,
+        errors: []
       }
     };
   } catch (err: any) {
@@ -507,12 +626,29 @@ app.get('/api/supabase/status', async (req: Request, res: Response) => {
   }
 
   try {
-    // Test count for admin_users
+    // Test count for admin_users, categories, products, orders, rates
     const adminRes = await supabase.from('admin_users').select('id', { count: 'exact', head: true });
     const catRes = await supabase.from('categories').select('id', { count: 'exact', head: true });
     const prodRes = await supabase.from('products').select('id', { count: 'exact', head: true });
     const orderRes = await supabase.from('orders').select('id', { count: 'exact', head: true });
     const ratesRes = await supabase.from('rates').select('*').limit(1);
+
+    const isMissing = (err: any) =>
+      Boolean(
+        err &&
+        (err.code === '42P01' ||
+          err.code === 'PGRST204' ||
+          err.code === 'PGRST200' ||
+          err.message?.toLowerCase().includes('does not exist') ||
+          err.message?.toLowerCase().includes('not found'))
+      );
+
+    const missingTables: string[] = [];
+    if (isMissing(adminRes.error)) missingTables.push('admin_users');
+    if (isMissing(catRes.error)) missingTables.push('categories');
+    if (isMissing(prodRes.error)) missingTables.push('products');
+    if (isMissing(ratesRes.error)) missingTables.push('rates');
+    if (isMissing(orderRes.error)) missingTables.push('orders');
 
     const hasAnyError = adminRes.error || catRes.error || prodRes.error;
 
@@ -520,7 +656,12 @@ app.get('/api/supabase/status', async (req: Request, res: Response) => {
       configured: true,
       connected: !hasAnyError,
       url: supabaseUrl,
-      error: hasAnyError ? (adminRes.error?.message || catRes.error?.message || prodRes.error?.message) : undefined,
+      error: hasAnyError
+        ? (missingTables.length > 0
+            ? `Tables (${missingTables.join(', ')}) not found in Supabase. Please run the SQL Schema in your Supabase SQL Editor.`
+            : adminRes.error?.message || catRes.error?.message || prodRes.error?.message)
+        : undefined,
+      missing_tables: missingTables,
       counts: {
         admin_users: adminRes.count ?? (adminRes.error ? null : 0),
         categories: catRes.count ?? (catRes.error ? null : 0),
