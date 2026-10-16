@@ -1227,7 +1227,10 @@ app.post('/api/admin/forgot-password', async (req: Request, res: Response) => {
   }
 
   // 1. Verify if email belongs to a registered administrator
-  let isRegisteredAdmin = cleanEmail === 'natesajewellery@gmail.com';
+  let isRegisteredAdmin =
+    cleanEmail === 'natesajewellery@gmail.com' ||
+    cleanEmail === 'achupradish20@gmail.com' ||
+    currentAdminUsers.some(u => u.email.toLowerCase().trim() === cleanEmail);
 
   if (supabase) {
     try {
