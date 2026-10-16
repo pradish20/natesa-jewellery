@@ -646,12 +646,10 @@ async function seedInitialDataToSupabase(): Promise<{ success: boolean; details:
   }
 
   try {
-    // 1. Seed admin user
+    // 1. Seed admin user row
     const { error: adminErr } = await supabase.from('admin_users').upsert([
       {
-        id: 'admin-1',
         email: 'natesajewellery@gmail.com',
-        password: 'natesa123',
         name: 'Natesa Administrator',
         role: 'super_admin'
       }
@@ -960,49 +958,41 @@ async function requireAdminAuth(req: Request, res: Response, next: express.NextF
     return res.status(401).json({ error: 'Unauthorized: Empty session token.' });
   }
 
-  // Local fallback session token
-  if (token === 'local-admin-session-token') {
-    return next();
+  if (!supabase) {
+    return res.status(503).json({ error: 'Supabase is not connected. Please connect your Supabase database in the Admin Portal.' });
   }
 
-  if (supabase) {
-    try {
-      const { data: { user: authUser }, error } = await supabase.auth.getUser(token);
-      if (error || !authUser) {
-        return res.status(401).json({ error: 'Unauthorized: Session expired or invalid.' });
-      }
-
-      // Verify admin role in admin_users table
-      const { data: adminRecord } = await supabase
-        .from('admin_users')
-        .select('id, email, name, role')
-        .or(`id.eq.${authUser.id},email.eq.${authUser.email?.toLowerCase().trim()}`)
-        .maybeSingle();
-
-      const roleStr = (adminRecord?.role || '').toLowerCase().trim();
-      const isAllowed = roleStr === 'super_admin' || roleStr === 'admin' || roleStr === 'owner' || roleStr === 'administrator';
-      if (!adminRecord || !isAllowed) {
-        return res.status(403).json({ error: 'Forbidden: Account does not have authorized administrator privileges.' });
-      }
-
-      (req as any).adminUser = adminRecord;
-      return next();
-    } catch (err) {
-      console.error('Admin Auth Validation Error:', err);
-      return res.status(401).json({ error: 'Unauthorized: Could not validate session.' });
+  try {
+    const { data: { user: authUser }, error } = await supabase.auth.getUser(token);
+    if (error || !authUser) {
+      return res.status(401).json({ error: 'Unauthorized: Invalid or expired administrator session. Please log in again.' });
     }
-  } else {
-    // Standby mode check before Supabase is connected
-    if (token && token.length >= 8) {
-      return next();
+
+    // Verify admin role in admin_users table
+    const { data: adminRecord } = await supabase
+      .from('admin_users')
+      .select('id, email, name, role')
+      .or(`id.eq.${authUser.id},email.eq.${authUser.email?.toLowerCase().trim()}`)
+      .maybeSingle();
+
+    const roleStr = (adminRecord?.role || '').toLowerCase().trim();
+    const isAllowed = !adminRecord || roleStr === 'super_admin' || roleStr === 'admin' || roleStr === 'owner' || roleStr === 'administrator';
+    
+    if (!isAllowed) {
+      return res.status(403).json({ error: 'Forbidden: Account does not have authorized administrator privileges.' });
     }
-    return res.status(401).json({ error: 'Unauthorized: Local session token invalid.' });
+
+    (req as any).adminUser = adminRecord || { id: authUser.id, email: authUser.email, role: 'super_admin' };
+    return next();
+  } catch (err) {
+    console.error('Admin Auth Validation Error:', err);
+    return res.status(401).json({ error: 'Unauthorized: Could not validate session.' });
   }
 }
 
 // ---------------- ADMIN CREDENTIALS & AUTH IN SUPABASE ----------------
 
-// Admin Login Route (Authenticates with Supabase Auth or links UUID)
+// Admin Login Route (Strictly authenticates via Supabase Auth)
 app.post('/api/admin/login', async (req: Request, res: Response) => {
   const { email, password } = req.body;
   const cleanEmail = (email || '').toLowerCase().trim();
@@ -1012,26 +1002,9 @@ app.post('/api/admin/login', async (req: Request, res: Response) => {
     return res.status(400).json({ error: 'Admin email and password are required.' });
   }
 
-  // 1. Universal Standby Credentials: Allow default admin login so store owner is NEVER locked out
-  if (cleanEmail === 'natesajewellery@gmail.com' && cleanPassword === 'natesa123') {
-    return res.json({
-      success: true,
-      user: {
-        id: 'admin-1',
-        email: cleanEmail,
-        name: 'Natesa Administrator',
-        role: 'super_admin'
-      },
-      token: 'local-admin-session-token',
-      source: 'local_credentials',
-      notice: 'Signed in with default administrator credentials.'
-    });
-  }
-
-  // 2. If Supabase is NOT connected, explain clearly to the user
   if (!supabase) {
-    return res.status(401).json({
-      error: 'Supabase is not connected to this app yet. Please connect your Supabase Project in the "Connect Supabase" panel below, or sign in using default credentials (natesajewellery@gmail.com / natesa123).'
+    return res.status(503).json({
+      error: 'Supabase is not connected yet. Please connect your Supabase project in the Admin Portal.'
     });
   }
 

@@ -327,11 +327,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
     }
   };
 
-  const handleFillDefaultAdmin = () => {
-    setAdminEmail('natesajewellery@gmail.com');
-    setAdminPassword('natesa123');
-    setAuthError('');
-  };
+
 
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
