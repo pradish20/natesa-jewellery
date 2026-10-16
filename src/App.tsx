@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Header } from './components/Header';
 import { Footer } from './components/Footer';
 import { ProductDetailModal } from './components/ProductDetailModal';
@@ -20,6 +20,7 @@ import { AboutView } from './views/AboutView';
 import { ContactView } from './views/ContactView';
 import { OrderTrackingView } from './views/OrderTrackingView';
 import { AdminView } from './views/AdminView';
+import { ResetPasswordView } from './views/ResetPasswordView';
 
 import { CartItem, Category, FeaturedSlide, Order, Product, RateSettings, StoreContactSettings } from './types';
 import { INITIAL_CATEGORIES, INITIAL_FEATURED_SLIDES, INITIAL_PRODUCTS, INITIAL_RATES, INITIAL_STORE_CONTACT } from './data/initialData';
@@ -27,11 +28,23 @@ import { calculatePriceBreakdown } from './utils/pricing';
 import { api } from './services/api';
 
 export default function App() {
-  // Navigation: Check if URL path is /admin
+  // Navigation: Check if URL path is /admin or /reset-password
   const getInitialTab = (): string => {
     if (typeof window !== 'undefined') {
       const path = window.location.pathname.toLowerCase().replace(/\/$/, '');
       const hash = window.location.hash.toLowerCase();
+      const search = window.location.search.toLowerCase();
+      if (
+        path === '/reset-password' ||
+        path === '/resetpassword' ||
+        hash === '#/reset-password' ||
+        hash === '#reset-password' ||
+        hash.includes('type=recovery') ||
+        hash.includes('access_token=') ||
+        search.includes('type=recovery')
+      ) {
+        return 'reset-password';
+      }
       if (path === '/admin' || hash === '#/admin' || hash === '#admin') {
         return 'admin';
       }
@@ -96,7 +109,7 @@ export default function App() {
   }, [wishlist]);
 
   // Initial Data Fetching from Server
-  const refreshAllData = async () => {
+  const refreshAllData = useCallback(async () => {
     try {
       const [fetchedRates, fetchedProducts, fetchedCategories, fetchedOrders, fetchedSlides, fetchedContact] = await Promise.all([
         api.getRates().catch(() => INITIAL_RATES),
@@ -120,28 +133,50 @@ export default function App() {
     } catch (err) {
       console.error('Error syncing store data:', err);
     }
-  };
+  }, []);
+
+  // Sync on tab focus so admin portal always shows new orders placed in other windows or by customers
+  useEffect(() => {
+    const handleFocus = () => {
+      refreshAllData();
+    };
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [refreshAllData]);
 
   useEffect(() => {
     refreshAllData();
 
-    // Listen for browser URL changes (e.g. typing /admin, back/forward buttons)
+    // Listen for browser URL changes (e.g. typing /admin, /reset-password, back/forward buttons)
     const handleLocationChange = () => {
       const path = window.location.pathname.toLowerCase().replace(/\/$/, '');
       const hash = window.location.hash.toLowerCase();
-      if (path === '/admin' || hash === '#/admin' || hash === '#admin') {
+      const search = window.location.search.toLowerCase();
+      if (
+        path === '/reset-password' ||
+        path === '/resetpassword' ||
+        hash === '#/reset-password' ||
+        hash === '#reset-password' ||
+        hash.includes('type=recovery') ||
+        hash.includes('access_token=') ||
+        search.includes('type=recovery')
+      ) {
+        setActiveTab('reset-password');
+      } else if (path === '/admin' || hash === '#/admin' || hash === '#admin') {
         setActiveTab('admin');
       } else {
         // Exited admin route: clear session
         try {
           sessionStorage.removeItem('natesa_admin_auth');
+          sessionStorage.removeItem('natesa_admin_token');
           sessionStorage.removeItem('natesa_admin_user');
           localStorage.removeItem('natesa_admin_auth');
+          localStorage.removeItem('natesa_admin_token');
           localStorage.removeItem('natesa_admin_user');
         } catch {
           // Ignore
         }
-        setActiveTab((prev) => (prev === 'admin' ? 'home' : prev));
+        setActiveTab((prev) => (prev === 'admin' || prev === 'reset-password' ? 'home' : prev));
       }
     };
 
@@ -231,8 +266,10 @@ export default function App() {
     if (activeTab === 'admin' && tab !== 'admin') {
       try {
         sessionStorage.removeItem('natesa_admin_auth');
+        sessionStorage.removeItem('natesa_admin_token');
         sessionStorage.removeItem('natesa_admin_user');
         localStorage.removeItem('natesa_admin_auth');
+        localStorage.removeItem('natesa_admin_token');
         localStorage.removeItem('natesa_admin_user');
       } catch {
         // Ignore
@@ -246,13 +283,17 @@ export default function App() {
       setSelectedCategorySlug(undefined);
     }
 
-    // Keep URL clean and sync /admin route
+    // Keep URL clean and sync /admin & /reset-password routes
     if (tab === 'admin') {
       if (window.location.pathname !== '/admin') {
         window.history.pushState(null, '', '/admin');
       }
+    } else if (tab === 'reset-password') {
+      if (window.location.pathname !== '/reset-password') {
+        window.history.pushState(null, '', '/reset-password');
+      }
     } else {
-      if (window.location.pathname === '/admin') {
+      if (window.location.pathname === '/admin' || window.location.pathname === '/reset-password') {
         window.history.pushState(null, '', '/');
       }
     }
@@ -350,6 +391,13 @@ export default function App() {
           />
         )}
 
+        {activeTab === 'reset-password' && (
+          <ResetPasswordView
+            onNavigateToAdmin={() => handleNavigateTab('admin')}
+            onNavigateToHome={() => handleNavigateTab('home')}
+          />
+        )}
+
         {activeTab === 'admin' && (
           <AdminView
             products={products}
@@ -360,6 +408,7 @@ export default function App() {
             storeContact={storeContact}
             onRefreshData={refreshAllData}
             onExitAdmin={() => handleNavigateTab('home')}
+            onNavigateToResetPassword={() => handleNavigateTab('reset-password')}
           />
         )}
       </main>

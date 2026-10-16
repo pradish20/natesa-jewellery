@@ -131,6 +131,11 @@ export const Footer: React.FC<FooterProps> = ({ storeContact, onNavigateTab }) =
                   Track Order Status
                 </button>
               </li>
+              <li className="pt-1.5 border-t border-gray-800/80">
+                <button onClick={() => onNavigateTab('admin')} className="text-gray-400 hover:text-[#D4AF37] transition-colors cursor-pointer text-xs">
+                  Store Admin Portal
+                </button>
+              </li>
             </ul>
           </div>
 
@@ -202,6 +207,7 @@ export const Footer: React.FC<FooterProps> = ({ storeContact, onNavigateTab }) =
             <button onClick={() => setPrivacyOpen(true)} className="hover:text-white cursor-pointer underline">Privacy Policy</button>
             <button onClick={() => onNavigateTab('about')} className="hover:text-white cursor-pointer">Hallmark Guarantee</button>
             <button onClick={() => onNavigateTab('tracking')} className="hover:text-white cursor-pointer">Order Tracking</button>
+            <button onClick={() => onNavigateTab('admin')} className="text-gray-400 hover:text-[#D4AF37] cursor-pointer">Admin</button>
           </div>
         </div>
 

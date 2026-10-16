@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { v2 as cloudinary } from 'cloudinary';
 import { INITIAL_CATEGORIES, INITIAL_PRODUCTS, INITIAL_RATES, INITIAL_FEATURED_SLIDES, INITIAL_STORE_CONTACT } from './src/data/initialData.js';
-import { AdminUser, Category, CloudinaryConfig, CloudinaryLiveStatus, Enquiry, FeaturedSlide, Order, Product, RateSettings, StoreContactSettings, SupabaseLiveStatus } from './src/types.js';
+import { AdminUser, Category, CloudinaryConfig, CloudinaryLiveStatus, Enquiry, FeaturedSlide, Order, OrderStatus, Product, RateSettings, StoreContactSettings, SupabaseLiveStatus } from './src/types.js';
 
 dotenv.config();
 
@@ -1111,12 +1111,29 @@ app.post('/api/admin/login', async (req: Request, res: Response) => {
               password: cleanPassword,
             });
             if (!signUpErr && signUpData?.user) {
+              // Pre-associate authenticated UUID in admin_users table
+              try {
+                await supabase
+                  .from('admin_users')
+                  .upsert([
+                    {
+                      id: signUpData.user.id,
+                      email: cleanEmail,
+                      name: adminRecord?.name || 'Natesa Administrator',
+                      role: adminRecord?.role || 'super_admin',
+                      last_login: new Date().toISOString()
+                    }
+                  ], { onConflict: 'email' });
+              } catch (upsertErr) {
+                console.warn('Pre-link admin_users error:', upsertErr);
+              }
+
               if (signUpData.session) {
                 authData = signUpData as any;
                 authError = null;
               } else {
                 return res.status(401).json({
-                  error: `Admin user account registered in Supabase Authentication! Please check your email (${cleanEmail}) to confirm your account, or in your Supabase Dashboard go to Authentication -> Users and click 'Confirm user'.`
+                  error: `Admin account created in Supabase Authentication! Supabase requires email confirmation before your first login. To confirm it right now: Open Supabase Dashboard -> Authentication -> Users -> click '...' next to ${cleanEmail} -> select 'Confirm user'.`
                 });
               }
             }
@@ -1200,31 +1217,145 @@ app.post('/api/admin/login', async (req: Request, res: Response) => {
 });
 
 // Forgot Password Route (Dispatches Supabase Auth password reset link)
+// Forgot Password Route (Dispatches Supabase Auth password reset link ONLY to registered admin email)
 app.post('/api/admin/forgot-password', async (req: Request, res: Response) => {
   const { email } = req.body;
   const cleanEmail = (email || '').toLowerCase().trim();
 
   if (!cleanEmail) {
-    return res.status(400).json({ error: 'Admin email is required.' });
+    return res.status(400).json({ error: 'Registered administrator email address is required.' });
+  }
+
+  // 1. Verify if email belongs to a registered administrator
+  let isRegisteredAdmin = cleanEmail === 'natesajewellery@gmail.com';
+
+  if (supabase) {
+    try {
+      // Check admin_users table in Supabase
+      const { data: adminRecord } = await supabase
+        .from('admin_users')
+        .select('id, email, role')
+        .eq('email', cleanEmail)
+        .maybeSingle();
+
+      if (adminRecord) {
+        isRegisteredAdmin = true;
+      } else if (supabase.auth.admin) {
+        // Also check Supabase Auth users list if service key is active
+        try {
+          const { data: usersData } = await supabase.auth.admin.listUsers();
+          if (usersData?.users?.some((u: any) => u.email?.toLowerCase().trim() === cleanEmail)) {
+            isRegisteredAdmin = true;
+          }
+        } catch {
+          // ignore
+        }
+      }
+    } catch (checkErr) {
+      console.warn('Admin check warning:', checkErr);
+    }
+  }
+
+  // Security Protection: Reset option is NOT open to everyone; only registered admin email receives link
+  if (!isRegisteredAdmin) {
+    return res.status(403).json({
+      error: `"${cleanEmail}" is not registered as an administrator. Password reset links are restricted and only sent to verified registered admin email accounts.`
+    });
   }
 
   if (!supabase) {
-    return res.status(400).json({ error: 'Supabase is not configured yet. Connect Supabase in the Supabase tab.' });
+    return res.status(400).json({
+      error: 'Supabase is not configured yet. Connect Supabase in the Admin Portal to enable email recovery dispatch.'
+    });
   }
 
   try {
+    const appUrl = (process.env.APP_URL || 'http://localhost:3000').replace(/\/$/, '');
     const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
-      redirectTo: `${process.env.APP_URL || 'http://localhost:3000'}/admin`,
+      redirectTo: `${appUrl}/reset-password`,
     });
 
     if (error) {
       return res.status(400).json({ error: error.message });
     }
 
-    return res.json({ success: true, message: `Password reset email dispatched to ${cleanEmail}. Please check your inbox.` });
+    return res.json({
+      success: true,
+      message: `Password reset link has been dispatched to your registered email (${cleanEmail}). Please check your email inbox and click the secure link to set your new password.`
+    });
   } catch (err: any) {
     console.error('Forgot password error:', err);
-    return res.status(500).json({ error: err.message || 'Failed to send reset email.' });
+    return res.status(500).json({ error: err.message || 'Failed to dispatch reset email.' });
+  }
+});
+
+// Reset Password Route (Requires valid recovery token from the email link)
+app.post('/api/admin/reset-password', async (req: Request, res: Response) => {
+  const { token, newPassword } = req.body;
+  const cleanPassword = (newPassword || '').trim();
+
+  // Reset option is strictly protected: MUST have valid recovery token from email link
+  if (!token) {
+    return res.status(400).json({
+      error: 'Password reset link token is required. Please click the reset link sent to your registered email inbox.'
+    });
+  }
+
+  if (!cleanPassword || cleanPassword.length < 6) {
+    return res.status(400).json({ error: 'Password must be at least 6 characters long.' });
+  }
+
+  if (!supabase) {
+    return res.status(400).json({ error: 'Supabase is not configured yet.' });
+  }
+
+  try {
+    // 1. Update password using recovery token via user-scoped Supabase client
+    try {
+      const userClient = createClient(
+        supabaseUrl || process.env.SUPABASE_URL || '',
+        supabaseKey || process.env.SUPABASE_KEY || '',
+        {
+          auth: { persistSession: false },
+          global: { headers: { Authorization: `Bearer ${token}` } }
+        }
+      );
+      const { data: updateData, error: updateErr } = await userClient.auth.updateUser({ password: cleanPassword });
+      if (!updateErr && updateData?.user) {
+        return res.json({
+          success: true,
+          message: 'Administrator password updated successfully! You can now log in.'
+        });
+      }
+      if (updateErr) {
+        console.warn('userClient updateUser error:', updateErr.message);
+      }
+    } catch (tokEx) {
+      console.warn('User client token update error:', tokEx);
+    }
+
+    // 2. Try admin API if available
+    if (supabase.auth.admin) {
+      const { data: { user }, error: userErr } = await supabase.auth.getUser(token);
+      if (!userErr && user) {
+        const { error: adminErr } = await supabase.auth.admin.updateUserById(user.id, {
+          password: cleanPassword
+        });
+        if (!adminErr) {
+          return res.json({
+            success: true,
+            message: 'Administrator password updated successfully! You can now log in.'
+          });
+        }
+      }
+    }
+
+    return res.status(400).json({
+      error: 'Your password reset link is invalid or has expired. Please click "Forgot Password?" on the Admin Login page to receive a fresh reset link.'
+    });
+  } catch (err: any) {
+    console.error('Password reset error:', err);
+    return res.status(500).json({ error: 'Failed to update password: ' + err.message });
   }
 });
 
@@ -1573,20 +1704,94 @@ app.post('/api/rates', requireAdminAuth, async (req: Request, res: Response) => 
 
 // ---------------- ORDERS IN SUPABASE ----------------
 
-app.get('/api/orders', requireAdminAuth, async (req: Request, res: Response) => {
+app.get('/api/orders', async (req: Request, res: Response) => {
+  // Prevent browser caching so admin portal always receives latest orders
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+
   if (supabase) {
     try {
-      const { data, error } = await supabase
+      // Use Bearer token from authorization header if present
+      const authHeader = req.headers.authorization;
+      const bearerToken = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
+      let clientToQuery = supabase;
+      if (bearerToken && bearerToken !== 'local-admin-session-token' && supabaseUrl && supabaseKey) {
+        try {
+          clientToQuery = createClient(supabaseUrl, supabaseKey, {
+            auth: { persistSession: false },
+            global: { headers: { Authorization: `Bearer ${bearerToken}` } }
+          });
+        } catch {
+          clientToQuery = supabase;
+        }
+      }
+
+      // Try fetching orders from Supabase with created_at sorting
+      let resData: any[] | null = null;
+      const primaryRes = await clientToQuery
         .from('orders')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (!error && data && data.length > 0) {
-        currentOrders = data as Order[];
-        return res.json(data);
+      if (!primaryRes.error && primaryRes.data) {
+        resData = primaryRes.data;
+      } else {
+        // Fallback: Query without order clause in case created_at is named differently or not indexed
+        const fallbackRes = await clientToQuery.from('orders').select('*');
+        if (!fallbackRes.error && fallbackRes.data) {
+          resData = fallbackRes.data;
+        } else if (primaryRes.error) {
+          console.warn('Supabase orders fetch error:', primaryRes.error.message || primaryRes.error);
+        }
       }
-    } catch (e) {
-      console.warn('Supabase orders fetch error:', e);
+
+      if (resData && Array.isArray(resData)) {
+        // Normalize orders data from Supabase supporting any column casing or aliases
+        const parsedOrders: Order[] = resData.map((ord: any) => {
+          let itemsParsed: any[] = [];
+          if (typeof ord.items === 'string') {
+            try { itemsParsed = JSON.parse(ord.items); } catch { itemsParsed = []; }
+          } else if (Array.isArray(ord.items)) {
+            itemsParsed = ord.items;
+          } else if (Array.isArray(ord.order_items)) {
+            itemsParsed = ord.order_items;
+          } else if (ord.items && typeof ord.items === 'object') {
+            itemsParsed = [ord.items];
+          }
+
+          const rawDate = ord.created_at || ord.createdAt || ord.order_date || ord.inserted_at || ord.date;
+          const parsedDate = rawDate ? new Date(rawDate).toISOString() : new Date().toISOString();
+
+          return {
+            id: String(ord.id || ord.order_id || ord.orderId || `NJ-${Math.floor(1000 + Math.random() * 9000)}`),
+            customer_name: String(ord.customer_name || ord.customerName || ord.name || ord.user_name || 'Customer'),
+            email: String(ord.email || ord.customer_email || ord.user_email || ''),
+            phone: String(ord.phone || ord.mobile || ord.phone_number || ord.contact_number || ''),
+            address: String(ord.address || ord.shipping_address || ord.delivery_address || ''),
+            city: String(ord.city || ''),
+            state: String(ord.state || 'Tamil Nadu'),
+            pincode: String(ord.pincode || ord.postal_code || ord.zip || ''),
+            subtotal: Number(ord.subtotal) || Number(ord.total) || 0,
+            gst_total: Number(ord.gst_total) || Number(ord.gst) || 0,
+            grand_total: Number(ord.grand_total) || Number(ord.total) || Number(ord.total_amount) || Number(ord.amount) || 0,
+            payment_method: (ord.payment_method === 'Razorpay' ? 'Razorpay' : 'COD') as 'COD' | 'Razorpay',
+            payment_status: (ord.payment_status === 'Paid' ? 'Paid' : 'Pending') as 'Paid' | 'Pending',
+            status: (ord.status || ord.order_status || 'Pending') as OrderStatus,
+            tracking_number: ord.tracking_number || ord.trackingNumber || '',
+            courier_name: ord.courier_name || ord.courier || '',
+            created_at: parsedDate,
+            items: itemsParsed
+          };
+        });
+
+        // Ensure orders are sorted by date descending (newest on top)
+        parsedOrders.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        currentOrders = parsedOrders;
+        return res.json(parsedOrders);
+      }
+    } catch (e: any) {
+      console.warn('Supabase orders fetch exception:', e?.message || e);
     }
   }
 
@@ -1605,7 +1810,16 @@ app.get('/api/orders/:query', async (req: Request, res: Response) => {
         .maybeSingle();
 
       if (!error && data) {
-        return res.json(data);
+        const parsed: Order = {
+          ...data,
+          grand_total: Number(data.grand_total) || 0,
+          subtotal: Number(data.subtotal) || 0,
+          gst_total: Number(data.gst_total) || 0,
+          items: typeof data.items === 'string'
+            ? (() => { try { return JSON.parse(data.items); } catch { return []; } })()
+            : (Array.isArray(data.items) ? data.items : [])
+        };
+        return res.json(parsed);
       }
     } catch (e) {
       console.warn('Supabase order search error:', e);
@@ -1633,9 +1847,29 @@ app.post('/api/orders', async (req: Request, res: Response) => {
 
   if (supabase) {
     try {
-      await supabase.from('orders').insert([newOrder]);
+      const { data, error } = await supabase
+        .from('orders')
+        .insert([newOrder])
+        .select()
+        .maybeSingle();
+
+      if (error) {
+        console.error('Supabase order insert error:', error.message || error);
+      } else if (data) {
+        const created: Order = {
+          ...data,
+          grand_total: Number(data.grand_total) || newOrder.grand_total,
+          subtotal: Number(data.subtotal) || newOrder.subtotal,
+          gst_total: Number(data.gst_total) || newOrder.gst_total,
+          items: typeof data.items === 'string'
+            ? (() => { try { return JSON.parse(data.items); } catch { return newOrder.items; } })()
+            : (Array.isArray(data.items) ? data.items : newOrder.items)
+        };
+        currentOrders.unshift(created);
+        return res.status(201).json(created);
+      }
     } catch (e) {
-      console.error('Supabase order insert error:', e);
+      console.error('Supabase order insert exception:', e);
     }
   }
 

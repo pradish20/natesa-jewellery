@@ -1,9 +1,28 @@
 import { AdminUser, Category, CloudinaryConfig, CloudinaryLiveStatus, Enquiry, EnvStatus, FeaturedSlide, Order, OrderStatus, Product, RateSettings, StoreContactSettings, SupabaseLiveStatus } from '../types';
 
 async function fetchJSON<T>(url: string, options?: RequestInit): Promise<T> {
+  let token: string | null = null;
+  if (typeof window !== 'undefined') {
+    try {
+      token = sessionStorage.getItem('natesa_admin_token') || localStorage.getItem('natesa_admin_token');
+    } catch {
+      token = null;
+    }
+  }
+
+  const customHeaders = (options?.headers as Record<string, string>) || {};
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...customHeaders
+  };
+
+  if (token && !headers['Authorization'] && !headers['authorization']) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
   const response = await fetch(url, {
-    headers: { 'Content-Type': 'application/json' },
-    ...options
+    ...options,
+    headers
   });
   if (!response.ok) {
     let errorMsg = `API Error [${response.status}]`;
@@ -72,7 +91,7 @@ export const api = {
     }),
 
   // Orders
-  getOrders: (): Promise<Order[]> => fetchJSON<Order[]>('/api/orders'),
+  getOrders: (): Promise<Order[]> => fetchJSON<Order[]>(`/api/orders?_t=${Date.now()}`),
 
   trackOrder: (query: string): Promise<Order> => fetchJSON<Order>(`/api/orders/${encodeURIComponent(query)}`),
 
@@ -112,6 +131,7 @@ export const api = {
     success: boolean;
     user: AdminUser;
     source: string;
+    token?: string;
   }> =>
     fetchJSON('/api/admin/login', {
       method: 'POST',
@@ -135,6 +155,12 @@ export const api = {
     fetchJSON('/api/admin/forgot-password', {
       method: 'POST',
       body: JSON.stringify({ email })
+    }),
+
+  resetPassword: (payload: { token?: string; email?: string; newPassword: string }): Promise<{ success: boolean; message: string }> =>
+    fetchJSON('/api/admin/reset-password', {
+      method: 'POST',
+      body: JSON.stringify(payload)
     }),
 
   // Supabase Status, Config & Migration
