@@ -961,20 +961,9 @@ export const AdminView: React.FC<AdminViewProps> = ({
             </div>
 
             <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="block text-xs font-bold text-[#292321] uppercase">
-                  Password
-                </label>
-                {onNavigateToResetPassword && (
-                  <button
-                    type="button"
-                    onClick={onNavigateToResetPassword}
-                    className="text-[11px] text-[#8F171B] hover:text-[#580E11] hover:underline font-medium cursor-pointer"
-                  >
-                    Forgot Password?
-                  </button>
-                )}
-              </div>
+              <label className="block text-xs font-bold text-[#292321] uppercase mb-1">
+                Password
+              </label>
               <div className="relative">
                 <input
                   type={showPassword ? 'text' : 'password'}
@@ -1021,9 +1010,6 @@ export const AdminView: React.FC<AdminViewProps> = ({
             </div>
           )}
         </div>
-
-        {/* Embedded Admin Footer Password Reset Section */}
-        <AdminFooterPasswordReset defaultEmail={adminEmail || 'natesajewellery@gmail.com'} />
       </div>
     );
   }
@@ -1085,10 +1071,21 @@ export const AdminView: React.FC<AdminViewProps> = ({
             <RefreshCw className={`w-3.5 h-3.5 ${loadingStatus ? 'animate-spin' : ''}`} />
           </button>
 
+          {onNavigateToResetPassword && (
+            <button
+              onClick={onNavigateToResetPassword}
+              className="text-[11px] bg-[#8F171B] hover:bg-[#580E11] text-[#EBDCC5] px-2.5 py-1 rounded-md transition-colors cursor-pointer flex items-center gap-1 font-bold border border-[#D4AF37]/40 shadow-xs ml-1"
+              title="Open separate Password Reset page"
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-[#D4AF37]" />
+              <span>Reset Password Page &rarr;</span>
+            </button>
+          )}
+
           {onExitAdmin && (
             <button
               onClick={handleLogout}
-              className="text-[11px] bg-white/10 hover:bg-white/20 text-[#EBDCC5] px-2.5 py-1 rounded-md transition-colors cursor-pointer ml-2"
+              className="text-[11px] bg-white/10 hover:bg-white/20 text-[#EBDCC5] px-2.5 py-1 rounded-md transition-colors cursor-pointer ml-1"
               title="Exit admin session and return to storefront"
             >
               Exit to Store
@@ -2591,9 +2588,32 @@ export const AdminView: React.FC<AdminViewProps> = ({
         </div>
       )}
 
-      {/* Admin Page Footer Password Reset Section */}
+      {/* Admin Page Footer Password Reset Redirect Section */}
       {activeTab !== 'password-reset' && (
-        <AdminFooterPasswordReset defaultEmail={currentUser?.email || 'natesajewellery@gmail.com'} />
+        <div className="mt-8 pt-6 border-t-2 border-[#D4AF37]/30 bg-[#292321] text-[#FCF8F1] rounded-2xl p-5 sm:p-6 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 w-full">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-[#8F171B] text-[#D4AF37] rounded-xl shadow-xs shrink-0">
+              <ShieldCheck className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="font-serif text-base sm:text-lg font-bold text-[#EBDCC5]">
+                Admin Password Reset Page
+              </h3>
+              <p className="text-xs text-gray-400">
+                Only accessible from inside the Admin Portal. Updating your password automatically syncs your credentials to the Supabase <code className="text-[#D4AF37] bg-black/40 px-1.5 py-0.5 rounded font-mono">admin_users</code> table.
+              </p>
+            </div>
+          </div>
+          {onNavigateToResetPassword && (
+            <button
+              onClick={onNavigateToResetPassword}
+              className="bg-[#8F171B] hover:bg-[#580E11] text-white px-5 py-2.5 rounded-xl font-bold text-xs transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer border border-[#D4AF37]/50 shrink-0"
+            >
+              <KeyRound className="w-4 h-4 text-[#D4AF37]" />
+              <span>Go to Password Reset Page &rarr;</span>
+            </button>
+          )}
+        </div>
       )}
 
     </div>
