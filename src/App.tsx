@@ -275,6 +275,7 @@ export default function App() {
       <Header
         rates={rates}
         storeContact={storeContact}
+        categories={categories}
         cartCount={cartItems.reduce((acc, item) => acc + item.quantity, 0)}
         wishlistCount={wishlist.length}
         activeTab={activeTab}

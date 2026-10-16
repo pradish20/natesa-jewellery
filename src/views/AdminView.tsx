@@ -3,7 +3,7 @@ import {
   Lock, KeyRound, Server, Cloud, Database, LayoutDashboard, Package, Folders,
   ShoppingBag, Settings, Plus, Edit, Trash2, CheckCircle2, AlertCircle, RefreshCw, Upload,
   Copy, Check, ShieldCheck, UserCheck, ExternalLink, ArrowRight, Image as ImageIcon, Sparkles, Link2,
-  MapPin, Phone, Eye, EyeOff, Clock
+  MapPin, Phone, Eye, EyeOff, Clock, HelpCircle, Info, X, ChevronDown, ChevronUp
 } from 'lucide-react';
 import {
   AdminUser, Category, CloudinaryConfig, CloudinaryLiveStatus, EnvStatus,
@@ -76,8 +76,15 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
   const [adminEmail, setAdminEmail] = useState<string>('');
   const [adminPassword, setAdminPassword] = useState<string>('');
+  const [showPassword, setShowPassword] = useState<boolean>(false);
   const [authError, setAuthError] = useState<string>('');
   const [loginLoading, setLoginLoading] = useState<boolean>(false);
+  const [showConnectSupabaseModal, setShowConnectSupabaseModal] = useState<boolean>(false);
+  const [showForgotModal, setShowForgotModal] = useState<boolean>(false);
+  const [forgotEmail, setForgotEmail] = useState<string>('');
+  const [forgotMsg, setForgotMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [forgotLoading, setForgotLoading] = useState<boolean>(false);
+  const [showSetupGuide, setShowSetupGuide] = useState<boolean>(false);
 
   // Active Admin Tab
   const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'categories' | 'slides' | 'store_contact' | 'orders' | 'rates' | 'supabase' | 'cloudinary'>('overview');
@@ -293,6 +300,53 @@ export const AdminView: React.FC<AdminViewProps> = ({
       setAuthError(err.message || 'Login failed. Invalid credentials.');
     } finally {
       setLoginLoading(false);
+    }
+  };
+
+  const handleFillDefaultAdmin = () => {
+    setAdminEmail('natesajewellery@gmail.com');
+    setAdminPassword('natesa123');
+    setAuthError('');
+  };
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!forgotEmail.trim()) {
+      setForgotMsg({ type: 'error', text: 'Please enter your admin email.' });
+      return;
+    }
+    setForgotLoading(true);
+    setForgotMsg(null);
+    try {
+      const res = await api.forgotPassword(forgotEmail.trim());
+      setForgotMsg({ type: 'success', text: res.message || 'Password reset link sent! Please check your email.' });
+    } catch (err: any) {
+      setForgotMsg({ type: 'error', text: err.message || 'Failed to dispatch reset email.' });
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+  const handleQuickConnectSupabase = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!supabaseUrlInput.trim() || !supabaseKeyInput.trim()) {
+      setSupabaseConfigMsg({ type: 'error', text: 'Please enter both Supabase URL and Key.' });
+      return;
+    }
+    setSupabaseSaving(true);
+    setSupabaseConfigMsg(null);
+    try {
+      const res = await api.saveSupabaseConfig({
+        url: supabaseUrlInput.trim(),
+        key: supabaseKeyInput.trim()
+      });
+      setSupabaseConfigMsg({ type: 'success', text: res.message || 'Supabase successfully connected!' });
+      await fetchStatusAndSupabase();
+      setTimeout(() => setShowConnectSupabaseModal(false), 1200);
+    } catch (err: any) {
+      setSupabaseConfigMsg({ type: 'error', text: err.message || 'Connection failed.' });
+    } finally {
+      setSupabaseSaving(false);
     }
   };
 
@@ -657,35 +711,80 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
   // ---------------- LOGIN SCREEN ----------------
   if (!isAuthenticated) {
+    const isSupabaseLive = supabaseStatus?.connected === true;
+    const isSupabaseConfigured = supabaseStatus?.configured === true;
+
     return (
-      <div className="min-h-[75vh] flex items-center justify-center px-4 py-12">
-        <div className="w-full max-w-sm bg-white rounded-2xl border border-[#D4AF37]/50 p-6 sm:p-8 shadow-xl space-y-6 text-center">
-          <div className="w-14 h-14 rounded-full bg-[#8F171B] text-[#D4AF37] flex items-center justify-center mx-auto shadow-md">
-            <Lock className="w-7 h-7" />
+      <div className="min-h-[85vh] flex items-center justify-center px-4 py-10 bg-linear-to-b from-[#FAF7F2] to-[#F3EEE6]">
+        <div className="w-full max-w-md bg-white rounded-3xl border border-[#D4AF37]/50 p-6 sm:p-8 shadow-2xl space-y-5 text-center relative overflow-hidden">
+          
+          {/* Decorative Corner Trim */}
+          <div className="absolute top-0 right-0 w-24 h-24 bg-[#D4AF37]/5 rounded-bl-full pointer-events-none" />
+          <div className="absolute top-0 left-0 w-24 h-24 bg-[#8F171B]/5 rounded-br-full pointer-events-none" />
+
+          {/* Icon and Title */}
+          <div className="relative">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-[#580E11] to-[#8F171B] text-[#D4AF37] flex items-center justify-center mx-auto shadow-lg border border-[#D4AF37]/40 mb-3">
+              <Lock className="w-8 h-8" />
+            </div>
+            <h1 className="font-serif text-2xl sm:text-3xl font-bold text-[#292321]">Admin Portal</h1>
+            <p className="text-xs text-gray-500 mt-1">Natesa Jewellery Management Portal</p>
           </div>
 
-          <div>
-            <h1 className="font-serif text-2xl font-bold text-[#292321]">Admin Portal</h1>
-            <p className="text-xs text-gray-500 mt-1">Sign in with your admin credentials</p>
+          {/* Live Supabase Connection Badge */}
+          <div className="flex items-center justify-between bg-[#FCF8F1] border border-[#D4AF37]/40 rounded-xl px-3 py-2 text-xs">
+            <div className="flex items-center gap-2 text-left">
+              <span className={`w-2.5 h-2.5 rounded-full ${isSupabaseLive ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400'}`} />
+              <div>
+                <span className="font-bold text-[#292321] block">
+                  {isSupabaseLive ? 'Supabase Auth Active' : 'Standby Mode (Local Auth)'}
+                </span>
+                <span className="text-[10px] text-gray-500 block truncate max-w-[170px]">
+                  {isSupabaseLive ? (supabaseStatus?.url?.replace('https://', '') || 'Connected') : 'Supabase project not connected'}
+                </span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setSupabaseConfigMsg(null);
+                setShowConnectSupabaseModal(true);
+              }}
+              className="text-[11px] font-semibold text-[#8F171B] hover:text-[#580E11] underline cursor-pointer"
+            >
+              {isSupabaseConfigured ? 'Change Project' : 'Connect Supabase'}
+            </button>
           </div>
 
+          {/* Login Form */}
           <form onSubmit={handleLogin} className="space-y-4 text-left">
             {authError && (
-              <div className="bg-red-50 border border-red-200 text-[#8F171B] p-3 rounded-xl text-xs flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                <span>{authError}</span>
+              <div className="bg-red-50 border border-red-200 text-[#8F171B] p-3.5 rounded-xl text-xs space-y-2">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-600" />
+                  <span className="font-medium leading-relaxed">{authError}</span>
+                </div>
+                {authError.toLowerCase().includes('not connected') && (
+                  <button
+                    type="button"
+                    onClick={handleFillDefaultAdmin}
+                    className="mt-1 text-[11px] bg-red-100 hover:bg-red-200 text-red-900 px-2.5 py-1 rounded-md font-bold transition-colors cursor-pointer block"
+                  >
+                    👉 Click to auto-fill default admin credentials
+                  </button>
+                )}
               </div>
             )}
 
             <div>
               <label className="block text-xs font-bold text-[#292321] uppercase mb-1">
-                Email
+                Admin Email
               </label>
               <input
                 type="email"
                 required
                 autoComplete="email"
-                placeholder="Enter admin email"
+                placeholder="natesajewellery@gmail.com"
                 value={adminEmail}
                 onChange={(e) => setAdminEmail(e.target.value)}
                 className="w-full bg-[#FCF8F1] border border-[#D4AF37]/40 rounded-xl px-3.5 py-2.5 text-sm focus:outline-hidden focus:border-[#8F171B] transition-colors"
@@ -693,44 +792,119 @@ export const AdminView: React.FC<AdminViewProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-[#292321] uppercase mb-1">
-                Password
-              </label>
-              <input
-                type="password"
-                required
-                autoComplete="current-password"
-                placeholder="••••••••"
-                value={adminPassword}
-                onChange={(e) => setAdminPassword(e.target.value)}
-                className="w-full bg-[#FCF8F1] border border-[#D4AF37]/40 rounded-xl px-3.5 py-2.5 text-sm focus:outline-hidden focus:border-[#8F171B] transition-colors font-mono"
-              />
+              <div className="flex justify-between items-center mb-1">
+                <label className="block text-xs font-bold text-[#292321] uppercase">
+                  Password
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setForgotMsg(null);
+                    setForgotEmail(adminEmail);
+                    setShowForgotModal(true);
+                  }}
+                  className="text-[11px] text-[#8F171B] hover:underline cursor-pointer"
+                >
+                  Forgot Password?
+                </button>
+              </div>
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  autoComplete="current-password"
+                  placeholder="••••••••"
+                  value={adminPassword}
+                  onChange={(e) => setAdminPassword(e.target.value)}
+                  className="w-full bg-[#FCF8F1] border border-[#D4AF37]/40 rounded-xl px-3.5 py-2.5 text-sm focus:outline-hidden focus:border-[#8F171B] transition-colors font-mono pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
             </div>
 
             <button
               type="submit"
               disabled={loginLoading}
-              className="w-full bg-[#8F171B] text-white hover:bg-[#580E11] py-3 rounded-xl font-bold text-sm transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 mt-2"
+              className="w-full bg-[#8F171B] text-white hover:bg-[#580E11] py-3 rounded-xl font-bold text-sm transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 mt-1"
             >
               {loginLoading ? (
                 <RefreshCw className="w-4 h-4 animate-spin text-[#D4AF37]" />
               ) : (
                 <KeyRound className="w-4 h-4 text-[#D4AF37]" />
               )}
-              <span>{loginLoading ? 'Signing In...' : 'Sign In'}</span>
-            </button>
-            
-            <button
-              type="button"
-              onClick={() => {
-                 const email = prompt('Enter your admin email to reset password:');
-                 if (email) api.forgotPassword(email).then(r => alert(r.message)).catch(e => alert(e.message));
-              }}
-              className="w-full text-xs text-gray-400 hover:text-[#8F171B] underline text-center pt-2"
-            >
-              Forgot Password?
+              <span>{loginLoading ? 'Authenticating with Supabase...' : 'Sign In to Admin'}</span>
             </button>
           </form>
+
+          {/* Quick Default Admin Login Shortcut */}
+          <div className="p-3 bg-amber-50/70 border border-amber-200/80 rounded-xl text-left space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-amber-900 flex items-center gap-1">
+                <Sparkles className="w-3.5 h-3.5 text-[#D4AF37]" /> Default Store Owner Access
+              </span>
+              <button
+                type="button"
+                onClick={handleFillDefaultAdmin}
+                className="text-[10px] bg-[#8F171B] text-white hover:bg-[#580E11] px-2 py-0.5 rounded font-semibold cursor-pointer transition-colors"
+              >
+                Auto Fill
+              </button>
+            </div>
+            <p className="text-[10px] text-amber-800">
+              Email: <code className="font-mono font-bold">natesajewellery@gmail.com</code> | Pass: <code className="font-mono font-bold">natesa123</code>
+            </p>
+          </div>
+
+          {/* Explanatory Collapsible: "Created Table in Supabase but can't login?" */}
+          <div className="border border-gray-200 rounded-xl overflow-hidden text-left text-xs bg-gray-50/50">
+            <button
+              type="button"
+              onClick={() => setShowSetupGuide(!showSetupGuide)}
+              className="w-full px-3.5 py-2.5 flex items-center justify-between text-gray-700 hover:text-black font-semibold text-xs cursor-pointer transition-colors"
+            >
+              <span className="flex items-center gap-1.5 text-gray-700">
+                <HelpCircle className="w-4 h-4 text-[#8F171B]" />
+                Created table in Supabase? Read this guide
+              </span>
+              {showSetupGuide ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </button>
+            
+            {showSetupGuide && (
+              <div className="px-3.5 pb-3.5 pt-1 space-y-2 text-[11px] text-gray-600 border-t border-gray-100 bg-white">
+                <p className="font-semibold text-gray-800">
+                  Why does Supabase show &quot;Invalid login credentials&quot; after creating the table?
+                </p>
+                <p>
+                  In Supabase, database tables (like <code className="bg-gray-100 px-1 rounded font-mono">admin_users</code>) only store user roles and permissions. Passwords are created and verified separately in <strong>Supabase Authentication</strong>!
+                </p>
+                <div className="bg-[#FAF7F2] p-2.5 rounded-lg border border-[#D4AF37]/30 space-y-1.5">
+                  <div className="font-bold text-[#8F171B]">Quick 3-Step Setup:</div>
+                  <ol className="list-decimal list-inside space-y-1 text-gray-700">
+                    <li>
+                      <strong>Connect Supabase:</strong> Click &quot;Connect Supabase&quot; above and enter your Project URL and Anon/Service Key.
+                    </li>
+                    <li>
+                      <strong>Create User in Supabase Auth:</strong> In your Supabase Dashboard, go to <em>Authentication &rarr; Users &rarr; Add User &rarr; Create User</em>. Enter your email and password, and check <em>Auto Confirm User?</em>.
+                    </li>
+                    <li>
+                      <strong>Authorize in admin_users:</strong> In Supabase SQL Editor, run:
+                      <pre className="mt-1 p-1.5 bg-gray-900 text-amber-200 rounded text-[10px] overflow-x-auto font-mono">
+{`INSERT INTO admin_users (id, email, name, role)
+VALUES (gen_random_uuid()::text, 'your-email@example.com', 'Admin', 'super_admin')
+ON CONFLICT (email) DO UPDATE SET role = 'super_admin';`}
+                      </pre>
+                    </li>
+                  </ol>
+                </div>
+              </div>
+            )}
+          </div>
 
           {onExitAdmin && (
             <div className="pt-2 border-t border-gray-100">
@@ -739,11 +913,176 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 onClick={onExitAdmin}
                 className="text-xs text-gray-400 hover:text-[#8F171B] transition-colors cursor-pointer"
               >
-                ← Return to Storefront
+                &larr; Return to Storefront
               </button>
             </div>
           )}
         </div>
+
+        {/* ================= CONNECT SUPABASE MODAL ================= */}
+        {showConnectSupabaseModal && (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-[#D4AF37]/50 space-y-4 text-left">
+              <div className="flex justify-between items-center border-b pb-3">
+                <div className="flex items-center gap-2">
+                  <Database className="w-5 h-5 text-[#8F171B]" />
+                  <h3 className="font-serif text-lg font-bold text-[#292321]">Connect Supabase Project</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowConnectSupabaseModal(false)}
+                  className="text-gray-400 hover:text-gray-600 p-1"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <p className="text-xs text-gray-600">
+                Enter your Supabase project credentials from your Supabase Dashboard (under <em>Project Settings &rarr; API</em>).
+              </p>
+
+              {supabaseConfigMsg && (
+                <div className={`p-3 rounded-xl text-xs flex items-center gap-2 ${
+                  supabaseConfigMsg.type === 'error'
+                    ? 'bg-red-50 text-red-800 border border-red-200'
+                    : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                }`}>
+                  {supabaseConfigMsg.type === 'error' ? (
+                    <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
+                  ) : (
+                    <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+                  )}
+                  <span>{supabaseConfigMsg.text}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleQuickConnectSupabase} className="space-y-3">
+                <div>
+                  <label className="block text-xs font-bold text-[#292321] uppercase mb-1">
+                    Supabase Project URL *
+                  </label>
+                  <input
+                    type="url"
+                    required
+                    placeholder="https://xyzproject.supabase.co"
+                    value={supabaseUrlInput}
+                    onChange={(e) => setSupabaseUrlInput(e.target.value)}
+                    className="w-full bg-[#FCF8F1] border border-[#D4AF37]/40 rounded-xl px-3 py-2 text-xs font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-[#292321] uppercase mb-1">
+                    Supabase Anon or Service Role Key *
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    placeholder="eyJhbGciOi..."
+                    value={supabaseKeyInput}
+                    onChange={(e) => setSupabaseKeyInput(e.target.value)}
+                    className="w-full bg-[#FCF8F1] border border-[#D4AF37]/40 rounded-xl px-3 py-2 text-xs font-mono"
+                  />
+                  <span className="text-[10px] text-gray-400 mt-1 block">
+                    Use the <code>anon</code> or <code>service_role</code> key from your Supabase dashboard.
+                  </span>
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowConnectSupabaseModal(false)}
+                    className="flex-1 py-2 text-xs border border-gray-300 rounded-xl text-gray-600 hover:bg-gray-50 font-semibold cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={supabaseSaving}
+                    className="flex-1 py-2 text-xs bg-[#8F171B] text-white hover:bg-[#580E11] rounded-xl font-bold flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    {supabaseSaving && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                    <span>{supabaseSaving ? 'Verifying...' : 'Connect Supabase'}</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* ================= FORGOT PASSWORD MODAL ================= */}
+        {showForgotModal && (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-[#D4AF37]/50 space-y-4 text-left">
+              <div className="flex justify-between items-center border-b pb-3">
+                <div className="flex items-center gap-2">
+                  <KeyRound className="w-5 h-5 text-[#8F171B]" />
+                  <h3 className="font-serif text-lg font-bold text-[#292321]">Reset Password</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowForgotModal(false)}
+                  className="text-gray-400 hover:text-gray-600 p-1"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <p className="text-xs text-gray-600">
+                Enter your authorized admin email address. We will dispatch a password reset link verified through Supabase Authentication.
+              </p>
+
+              {forgotMsg && (
+                <div className={`p-3 rounded-xl text-xs flex items-start gap-2 ${
+                  forgotMsg.type === 'error'
+                    ? 'bg-red-50 text-red-800 border border-red-200'
+                    : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                }`}>
+                  {forgotMsg.type === 'error' ? (
+                    <AlertCircle className="w-4 h-4 shrink-0 text-red-600 mt-0.5" />
+                  ) : (
+                    <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600 mt-0.5" />
+                  )}
+                  <span>{forgotMsg.text}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleForgotPassword} className="space-y-3">
+                <div>
+                  <label className="block text-xs font-bold text-[#292321] uppercase mb-1">
+                    Admin Email Address
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="Enter your admin email"
+                    value={forgotEmail}
+                    onChange={(e) => setForgotEmail(e.target.value)}
+                    className="w-full bg-[#FCF8F1] border border-[#D4AF37]/40 rounded-xl px-3 py-2 text-xs"
+                  />
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowForgotModal(false)}
+                    className="flex-1 py-2 text-xs border border-gray-300 rounded-xl text-gray-600 hover:bg-gray-50 font-semibold cursor-pointer"
+                  >
+                    Close
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={forgotLoading}
+                    className="flex-1 py-2 text-xs bg-[#8F171B] text-white hover:bg-[#580E11] rounded-xl font-bold flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    {forgotLoading && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                    <span>{forgotLoading ? 'Dispatching...' : 'Send Reset Link'}</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -2041,6 +2380,39 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   </div>
                 </div>
               )}
+              {/* Admin Forgot Password / Reset Link Dispatcher */}
+              <div className="pt-3 border-t space-y-2">
+                <span className="text-[10px] font-bold text-gray-500 uppercase block">Send Password Reset Link</span>
+                <p className="text-[11px] text-gray-500">
+                  Dispatch a secure Supabase password reset link to any registered administrator email.
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    type="email"
+                    placeholder="admin@example.com"
+                    value={forgotEmail}
+                    onChange={(e) => setForgotEmail(e.target.value)}
+                    className="flex-1 bg-[#FCF8F1] border border-[#D4AF37]/50 rounded-xl px-3 py-1.5 text-xs"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleForgotPassword}
+                    disabled={forgotLoading}
+                    className="bg-[#8F171B] hover:bg-[#580E11] text-white px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50 whitespace-nowrap"
+                  >
+                    {forgotLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <KeyRound className="w-3.5 h-3.5 text-[#D4AF37]" />}
+                    <span>{forgotLoading ? 'Sending...' : 'Send Reset Link'}</span>
+                  </button>
+                </div>
+                {forgotMsg && (
+                  <div className={`p-2 rounded-lg text-xs flex items-center gap-2 ${
+                    forgotMsg.type === 'error' ? 'bg-red-50 text-red-800' : 'bg-emerald-50 text-emerald-800'
+                  }`}>
+                    {forgotMsg.type === 'error' ? <AlertCircle className="w-3.5 h-3.5 text-red-600 shrink-0" /> : <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />}
+                    <span>{forgotMsg.text}</span>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 

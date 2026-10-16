@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ShoppingBag, Heart, Search, ShieldCheck, Phone, Sparkles, Menu, X, Lock, ChevronDown } from 'lucide-react';
-import { RateSettings, StoreContactSettings } from '../types';
+import { Category, RateSettings, StoreContactSettings } from '../types';
 import { Logo } from './Logo';
 
 interface HeaderProps {
@@ -8,6 +8,7 @@ interface HeaderProps {
   cartCount: number;
   wishlistCount: number;
   activeTab: string;
+  categories: Category[];
   storeContact?: StoreContactSettings;
   setActiveTab: (tab: string, categorySlug?: string) => void;
   onOpenCart: () => void;
@@ -19,6 +20,7 @@ export const Header: React.FC<HeaderProps> = ({
   cartCount,
   wishlistCount,
   activeTab,
+  categories,
   storeContact,
   setActiveTab,
   onOpenCart,
@@ -33,18 +35,19 @@ export const Header: React.FC<HeaderProps> = ({
   const phoneTel = phoneDisplay.replace(/[^0-9+]/g, '');
   const announcement = storeContact?.announcement_text || 'Crafted with Trust • Timeless Since Generations';
 
+  // Dynamic Submenus
   const goldSubmenu = [
     { label: 'All Gold Jewellery', slug: 'all' },
-    { label: 'Gold Necklaces & Malas', slug: 'gold-necklaces-malas' },
-    { label: 'Antique Jhumkas & Studs', slug: 'antique-jhumkas-studs' },
-    { label: 'Temple Kadas & Bangles', slug: 'temple-kadas-bangles' },
-    { label: 'Gold Cocktail & Navratna Rings', slug: 'gold-cocktail-navratna-rings' }
+    ...categories
+      .filter((c) => c.slug.toLowerCase().includes('gold'))
+      .map((c) => ({ label: c.name, slug: c.slug }))
   ];
 
   const silverSubmenu = [
-    { label: 'All Silver Jewellery', slug: 'silver-kolusu-anklets' },
-    { label: '92.5 Sterling Silver Kolusu', slug: 'silver-kolusu-anklets' },
-    { label: 'Pure Silver Pooja Articles', slug: 'silver-kolusu-anklets' }
+    { label: 'All Silver Jewellery', slug: 'all' },
+    ...categories
+      .filter((c) => c.slug.toLowerCase().includes('silver'))
+      .map((c) => ({ label: c.name, slug: c.slug }))
   ];
 
   return (
@@ -282,7 +285,7 @@ export const Header: React.FC<HeaderProps> = ({
             >
               Gold Jewellery
             </button>
-            {goldSubmenu.slice(1).map((sub) => (
+            {goldSubmenu.map((sub) => (
               <button
                 key={sub.label}
                 onClick={() => { setActiveTab('gold', sub.slug); setMobileMenuOpen(false); }}
