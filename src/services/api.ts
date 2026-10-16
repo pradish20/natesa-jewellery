@@ -131,6 +131,12 @@ export const api = {
       body: JSON.stringify(adminData)
     }),
 
+  forgotPassword: (email: string): Promise<{ success: boolean; message: string }> =>
+    fetchJSON('/api/admin/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email })
+    }),
+
   // Supabase Status, Config & Migration
   getSupabaseStatus: (): Promise<SupabaseLiveStatus> => fetchJSON<SupabaseLiveStatus>('/api/supabase/status'),
 

@@ -107,13 +107,12 @@ let currentOrders: Order[] = [
 let currentEnquiries: Enquiry[] = [];
 
 // Default In-Memory Admin
-let currentAdminUsers: (AdminUser & { password: string })[] = [
+let currentAdminUsers: AdminUser[] = [
   {
     id: 'admin-1',
     email: 'natesajewellery@gmail.com',
     name: 'Natesa Administrator',
     role: 'super_admin',
-    password: 'natesa123',
     created_at: new Date().toISOString()
   }
 ];
@@ -293,20 +292,22 @@ const SUPABASE_SCHEMA_SQL = `-- Natesa Jewellery Supabase Database Schema
 -- 0. Drop old conflicting tables from earlier/test setups (ensures clean, matching schema)
 DROP TABLE IF EXISTS categories, products, rates, orders, admin_users CASCADE;
 
--- 1. Admin Users Table
+-- 1. Admin Users Table (Associated with Supabase Authentication UUID)
 CREATE TABLE IF NOT EXISTS admin_users (
-  id TEXT PRIMARY KEY,
+  id TEXT PRIMARY KEY, -- Matches Supabase Auth User UUID (auth.users.id)
   email TEXT UNIQUE NOT NULL,
-  password TEXT NOT NULL,
   name TEXT NOT NULL DEFAULT 'Natesa Administrator',
   role TEXT NOT NULL DEFAULT 'super_admin',
   created_at TIMESTAMPTZ DEFAULT NOW(),
   last_login TIMESTAMPTZ
 );
 
--- Default Admin User
-INSERT INTO admin_users (id, email, password, name, role)
-VALUES ('admin-1', 'natesajewellery@gmail.com', 'natesa123', 'Natesa Administrator', 'super_admin')
+-- Safely drop legacy plaintext password column if it exists from earlier schema
+ALTER TABLE admin_users DROP COLUMN IF EXISTS password;
+
+-- Default Admin User Record
+INSERT INTO admin_users (id, email, name, role)
+VALUES ('admin-1', 'natesajewellery@gmail.com', 'Natesa Administrator', 'super_admin')
 ON CONFLICT (email) DO NOTHING;
 
 -- 2. Categories Table
@@ -790,100 +791,84 @@ app.get('/api/supabase/schema', (req: Request, res: Response) => {
 
 // ---------------- ADMIN CREDENTIALS & AUTH IN SUPABASE ----------------
 
-// Admin Login Route (Verifies against Supabase admin_users)
+// ---------------- ADMIN CREDENTIALS & AUTH IN SUPABASE ----------------
+
+// Admin Login Route (Authenticates with Supabase Auth)
 app.post('/api/admin/login', async (req: Request, res: Response) => {
   const { email, password } = req.body;
-
   const cleanEmail = (email || '').toLowerCase().trim();
-  const cleanPassword = (password || '').trim();
 
-  if (!cleanEmail || !cleanPassword) {
-    return res.status(400).json({ error: 'Admin email and password are required.' });
+  if (!supabase || !cleanEmail || !password) {
+    return res.status(400).json({ error: 'Authentication service unavailable.' });
   }
 
-  // Try checking in Supabase admin_users table
-  if (supabase) {
-    try {
-      const { data, error } = await supabase
-        .from('admin_users')
-        .select('*')
-        .eq('email', cleanEmail)
-        .maybeSingle();
+  try {
+    // 1. Authenticate with Supabase Auth
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      email: cleanEmail,
+      password: password,
+    });
 
-      if (!error && data) {
-        if (data.password === cleanPassword) {
-          // Update last_login
-          await supabase
-            .from('admin_users')
-            .update({ last_login: new Date().toISOString() })
-            .eq('id', data.id);
-
-          return res.json({
-            success: true,
-            user: {
-              id: data.id,
-              email: data.email,
-              name: data.name,
-              role: data.role,
-              last_login: data.last_login
-            },
-            source: 'supabase_database'
-          });
-        } else {
-          return res.status(401).json({ error: 'Invalid email or password.' });
-        }
-      }
-
-      // If table exists but no users yet, seed default admin
-      if (!error && !data) {
-        const { count } = await supabase.from('admin_users').select('id', { count: 'exact', head: true });
-        if (count === 0 && cleanEmail === 'natesajewellery@gmail.com' && cleanPassword === 'natesa123') {
-          await supabase.from('admin_users').insert([
-            {
-              id: 'admin-1',
-              email: cleanEmail,
-              password: cleanPassword,
-              name: 'Natesa Administrator',
-              role: 'super_admin'
-            }
-          ]);
-          return res.json({
-            success: true,
-            user: {
-              id: 'admin-1',
-              email: cleanEmail,
-              name: 'Natesa Administrator',
-              role: 'super_admin'
-            },
-            source: 'supabase_seeded'
-          });
-        }
-      }
-    } catch (err) {
-      console.error('Supabase admin login error, falling back to local credentials:', err);
+    if (authError || !authData.user) {
+      return res.status(401).json({ error: 'Invalid email or password.' });
     }
-  }
 
-  // Fallback to local admin credentials
-  const localMatch = currentAdminUsers.find(
-    u => u.email.toLowerCase() === cleanEmail && u.password === cleanPassword
-  );
+    // 2. Verify admin role in admin_users table
+    const { data: adminData, error: adminError } = await supabase
+      .from('admin_users')
+      .select('*')
+      .eq('id', authData.user.id)
+      .maybeSingle();
 
-  if (localMatch || (cleanEmail === 'natesajewellery@gmail.com' && cleanPassword === 'natesa123')) {
+    if (adminError || !adminData) {
+      return res.status(403).json({ error: 'User is not an authorized administrator.' });
+    }
+
+    // Update last_login
+    await supabase
+      .from('admin_users')
+      .update({ last_login: new Date().toISOString() })
+      .eq('id', adminData.id);
+
     return res.json({
       success: true,
       user: {
-        id: localMatch?.id || 'admin-1',
-        email: cleanEmail,
-        name: localMatch?.name || 'Natesa Administrator',
-        role: 'super_admin'
-      },
-      source: 'local_credentials'
+        id: adminData.id,
+        email: adminData.email,
+        name: adminData.name,
+        role: adminData.role,
+        last_login: adminData.last_login
+      }
     });
+  } catch (err) {
+    console.error('Admin login error:', err);
+    return res.status(500).json({ error: 'Internal server error.' });
+  }
+});
+
+// Forgot Password Route
+app.post('/api/admin/forgot-password', async (req: Request, res: Response) => {
+  const { email } = req.body;
+  const cleanEmail = (email || '').toLowerCase().trim();
+
+  if (!supabase || !cleanEmail) {
+    return res.status(400).json({ error: 'Email is required.' });
   }
 
-  return res.status(401).json({ error: 'Invalid email or password.' });
+  try {
+    const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
+      redirectTo: `${process.env.APP_URL || 'http://localhost:3000'}/admin`,
+    });
+
+    if (error) throw error;
+
+    return res.json({ success: true, message: 'Password reset email sent.' });
+  } catch (err: any) {
+    console.error('Forgot password error:', err);
+    return res.status(500).json({ error: err.message || 'Failed to send reset email.' });
+  }
 });
+
 
 // List Admin Users
 app.get('/api/admin/users', async (req: Request, res: Response) => {
@@ -902,8 +887,8 @@ app.get('/api/admin/users', async (req: Request, res: Response) => {
     }
   }
 
-  // Fallback local admin users (strip passwords)
-  const safeUsers = currentAdminUsers.map(({ password, ...u }) => u);
+  // Fallback local admin users
+  const safeUsers = currentAdminUsers;
   res.json(safeUsers);
 });
 

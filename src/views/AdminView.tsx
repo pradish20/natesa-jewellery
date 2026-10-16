@@ -719,6 +719,17 @@ export const AdminView: React.FC<AdminViewProps> = ({
               )}
               <span>{loginLoading ? 'Signing In...' : 'Sign In'}</span>
             </button>
+            
+            <button
+              type="button"
+              onClick={() => {
+                 const email = prompt('Enter your admin email to reset password:');
+                 if (email) api.forgotPassword(email).then(r => alert(r.message)).catch(e => alert(e.message));
+              }}
+              className="w-full text-xs text-gray-400 hover:text-[#8F171B] underline text-center pt-2"
+            >
+              Forgot Password?
+            </button>
           </form>
 
           {onExitAdmin && (

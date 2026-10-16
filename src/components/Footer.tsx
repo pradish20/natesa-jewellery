@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { MapPin, Phone, Mail, Instagram, ShieldCheck, Award, Clock, X } from 'lucide-react';
 import { Logo } from './Logo';
 import { StoreContactSettings } from '../types';
+import { api } from '../services/api';
 
 interface FooterProps {
   storeContact?: StoreContactSettings;
@@ -199,6 +200,15 @@ export const Footer: React.FC<FooterProps> = ({ storeContact, onNavigateTab }) =
             </a>
             <button onClick={() => setTermsOpen(true)} className="hover:text-white cursor-pointer underline">Terms & Conditions</button>
             <button onClick={() => setPrivacyOpen(true)} className="hover:text-white cursor-pointer underline">Privacy Policy</button>
+            <button 
+              onClick={() => {
+                 const email = prompt('Enter your admin email to reset password:');
+                 if (email) api.forgotPassword(email).then(r => alert(r.message)).catch(e => alert(e.message));
+              }}
+              className="hover:text-white cursor-pointer underline"
+            >
+              Forgot Password
+            </button>
             <button onClick={() => onNavigateTab('about')} className="hover:text-white cursor-pointer">Hallmark Guarantee</button>
             <button onClick={() => onNavigateTab('tracking')} className="hover:text-white cursor-pointer">Order Tracking</button>
           </div>
