@@ -457,27 +457,186 @@ ON CONFLICT (id) DO UPDATE SET
   is_featured = EXCLUDED.is_featured,
   in_stock = EXCLUDED.in_stock;
 
--- Row Level Security (RLS) Policies
+-- 6. admins (Secondary Administrator Role Mapping Table)
+CREATE TABLE IF NOT EXISTS admins (
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  user_id UUID,
+  email TEXT UNIQUE NOT NULL,
+  name TEXT NOT NULL DEFAULT 'Admin',
+  role TEXT NOT NULL DEFAULT 'admin',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+INSERT INTO admins (id, email, name, role)
+VALUES ('admin-sec-1', 'natesajewellery@gmail.com', 'Natesa Administrator', 'super_admin')
+ON CONFLICT (email) DO NOTHING;
+
+-- 7. collections (Curated Jewelry Collections)
+CREATE TABLE IF NOT EXISTS collections (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  slug TEXT UNIQUE NOT NULL,
+  description TEXT,
+  image_url TEXT,
+  is_featured BOOLEAN DEFAULT true,
+  display_order INT DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+INSERT INTO collections (id, name, slug, description, image_url, is_featured, display_order)
+VALUES
+('col-1', 'South Indian Temple Bridal', 'temple-bridal-collection', 'Authentic temple jewellery featuring Lakshmi, Peacock, and Nakshi hand-work.', 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?auto=format&fit=crop&w=800&q=80', true, 1),
+('col-2', 'Royal Antique Heritage', 'royal-antique-heritage', 'Matte antique finish gold jewellery crafted with kemp, rubies, and pearls.', 'https://images.unsplash.com/photo-1630019852942-f89202989a59?auto=format&fit=crop&w=800&q=80', true, 2),
+('col-3', '92.5 Pure Silver Pooja & Kolusu', 'pure-silver-pooja-kolusu', 'Traditional 92.5 silver handcrafted anklets, lamps, and sacred pooja items.', 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?auto=format&fit=crop&w=800&q=80', true, 3)
+ON CONFLICT (id) DO NOTHING;
+
+-- 8. enquiries (Customer Inquiries & Bridal Consultation Messages)
+CREATE TABLE IF NOT EXISTS enquiries (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  phone TEXT NOT NULL,
+  email TEXT,
+  message TEXT NOT NULL,
+  branch TEXT DEFAULT 'Main Branch',
+  status TEXT DEFAULT 'New',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 9. featured_slides (Hero Banner Auto-sliding Carousel Images)
+CREATE TABLE IF NOT EXISTS featured_slides (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  subtitle TEXT,
+  badge TEXT,
+  image_url TEXT NOT NULL,
+  category_slug TEXT DEFAULT 'gold-necklaces-malas',
+  cta_text TEXT DEFAULT 'Explore Collection',
+  display_order INT DEFAULT 0,
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+INSERT INTO featured_slides (id, title, subtitle, badge, image_url, category_slug, display_order, is_active)
+VALUES
+('slide-1', 'South Indian Royal Bridal Harams', 'Handcrafted in 22K Hallmarked Gold with Nakshi motifs', 'GRAND BRIDAL FESTIVAL', 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?auto=format&fit=crop&w=1400&q=85', 'gold-necklaces-malas', 1, true),
+('slide-2', 'Antique Temple Jhumkas & Ear Studs', 'Intricately embossed with rubies, emeralds, and pearls', 'TRADITIONAL HERITAGE', 'https://images.unsplash.com/photo-1630019852942-f89202989a59?auto=format&fit=crop&w=1400&q=85', 'antique-jhumkas-studs', 2, true),
+('slide-3', 'Handcrafted 92.5 Sterling Silver Kolusu', 'Pure silver bridal anklets with traditional chime bells', 'SILVER SANCTUARY', 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?auto=format&fit=crop&w=1400&q=85', 'silver-kolusu-anklets', 3, true)
+ON CONFLICT (id) DO NOTHING;
+
+-- 10. settings (Storewide Configuration, GST & Announcement Banner)
+CREATE TABLE IF NOT EXISTS settings (
+  id TEXT PRIMARY KEY DEFAULT 'general_settings',
+  store_name TEXT DEFAULT 'Natesa Jewellery',
+  announcement_text TEXT DEFAULT 'BIS 916 Hallmarked Gold & 92.5 Silver. Free Express Insured Shipping across India.',
+  currency TEXT DEFAULT 'INR',
+  gst_percent NUMERIC DEFAULT 3.0,
+  making_charge_type TEXT DEFAULT 'fixed',
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+INSERT INTO settings (id, store_name, announcement_text)
+VALUES ('general_settings', 'Natesa Jewellery', 'BIS 916 Hallmarked Gold & 92.5 Silver. Free Express Insured Shipping across India.')
+ON CONFLICT (id) DO NOTHING;
+
+-- 11. shop_details (Store Contact, Addresses, Phone Numbers & Operating Hours)
+CREATE TABLE IF NOT EXISTS shop_details (
+  id TEXT PRIMARY KEY DEFAULT 'store_contact',
+  phone_primary TEXT DEFAULT '+91 94432 53072',
+  phone_secondary TEXT DEFAULT '+91 424 2253072',
+  phone_whatsapp TEXT DEFAULT '+91 94432 53072',
+  email TEXT DEFAULT 'natesajewellery@gmail.com',
+  main_branch_address TEXT DEFAULT '142, Netaji Road, Erode, Tamil Nadu 638001',
+  second_branch_address TEXT DEFAULT '88, Perundurai Road, Erode, Tamil Nadu 638011',
+  opening_hours TEXT DEFAULT 'Mon - Sat: 9:30 AM - 9:00 PM | Sun: 10:00 AM - 8:30 PM',
+  announcement_text TEXT DEFAULT 'BIS Hallmark 916 Pure Gold & 92.5 Fine Silver',
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+INSERT INTO shop_details (id, phone_primary, phone_secondary, phone_whatsapp, email, main_branch_address, second_branch_address, opening_hours, announcement_text)
+VALUES (
+  'store_contact',
+  '+91 94432 53072',
+  '+91 424 2253072',
+  '+91 94432 53072',
+  'natesajewellery@gmail.com',
+  '142, Netaji Road, Erode, Tamil Nadu 638001',
+  '88, Perundurai Road, Erode, Tamil Nadu 638011',
+  'Mon - Sat: 9:30 AM - 9:00 PM | Sun: 10:00 AM - 8:30 PM',
+  'BIS Hallmark 916 Pure Gold & 92.5 Fine Silver'
+)
+ON CONFLICT (id) DO NOTHING;
+
+-- 12. shops (Showroom Outlets & Physical Branches)
+CREATE TABLE IF NOT EXISTS shops (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  tagline TEXT,
+  address TEXT NOT NULL,
+  phone TEXT NOT NULL,
+  secondary_phone TEXT,
+  email TEXT,
+  opening_hours TEXT NOT NULL,
+  gmaps_url TEXT,
+  is_main_branch BOOLEAN DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+INSERT INTO shops (id, name, tagline, address, phone, secondary_phone, email, opening_hours, is_main_branch)
+VALUES
+('shop-1', 'Natesa Jewellery - Netaji Road Flagship', 'Heritage Gold & Bridal Showroom', '142, Netaji Road, Erode, Tamil Nadu 638001', '+91 94432 53072', '+91 424 2253072', 'natesajewellery@gmail.com', 'Mon - Sat: 9:30 AM - 9:00 PM | Sun: 10:00 AM - 8:30 PM', true),
+('shop-2', 'Natesa Jewellery - Perundurai Road Branch', 'Exclusive Antique & Silver Palace', '88, Perundurai Road, Erode, Tamil Nadu 638011', '+91 94432 53073', '+91 424 2253073', 'natesajewellery@gmail.com', 'Mon - Sat: 9:30 AM - 9:00 PM | Sun: 10:00 AM - 8:30 PM', false)
+ON CONFLICT (id) DO NOTHING;
+
+-- Enable Row Level Security (RLS) on All 12 Tables
 ALTER TABLE admin_users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE admins ENABLE ROW LEVEL SECURITY;
 ALTER TABLE categories ENABLE ROW LEVEL SECURITY;
+ALTER TABLE collections ENABLE ROW LEVEL SECURITY;
+ALTER TABLE enquiries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE featured_slides ENABLE ROW LEVEL SECURITY;
+ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE products ENABLE ROW LEVEL SECURITY;
 ALTER TABLE rates ENABLE ROW LEVEL SECURITY;
-ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE shop_details ENABLE ROW LEVEL SECURITY;
+ALTER TABLE shops ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "Allow all on admin_users" ON admin_users;
-CREATE POLICY "Allow all on admin_users" ON admin_users FOR ALL USING (true) WITH CHECK (true);
+-- Grant Full Accessible Policies
+DROP POLICY IF EXISTS "Public admin_users access" ON admin_users;
+CREATE POLICY "Public admin_users access" ON admin_users FOR ALL USING (true) WITH CHECK (true);
 
-DROP POLICY IF EXISTS "Allow all on categories" ON categories;
-CREATE POLICY "Allow all on categories" ON categories FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Public admins access" ON admins;
+CREATE POLICY "Public admins access" ON admins FOR ALL USING (true) WITH CHECK (true);
 
-DROP POLICY IF EXISTS "Allow all on products" ON products;
-CREATE POLICY "Allow all on products" ON products FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Public categories access" ON categories;
+CREATE POLICY "Public categories access" ON categories FOR ALL USING (true) WITH CHECK (true);
 
-DROP POLICY IF EXISTS "Allow all on rates" ON rates;
-CREATE POLICY "Allow all on rates" ON rates FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Public collections access" ON collections;
+CREATE POLICY "Public collections access" ON collections FOR ALL USING (true) WITH CHECK (true);
 
-DROP POLICY IF EXISTS "Allow all on orders" ON orders;
-CREATE POLICY "Allow all on orders" ON orders FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Public enquiries access" ON enquiries;
+CREATE POLICY "Public enquiries access" ON enquiries FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public featured_slides access" ON featured_slides;
+CREATE POLICY "Public featured_slides access" ON featured_slides FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public orders access" ON orders;
+CREATE POLICY "Public orders access" ON orders FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public products access" ON products;
+CREATE POLICY "Public products access" ON products FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public rates access" ON rates;
+CREATE POLICY "Public rates access" ON rates FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public settings access" ON settings;
+CREATE POLICY "Public settings access" ON settings FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public shop_details access" ON shop_details;
+CREATE POLICY "Public shop_details access" ON shop_details FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public shops access" ON shops;
+CREATE POLICY "Public shops access" ON shops FOR ALL USING (true) WITH CHECK (true);
 `;
 
 // Helper: Sync initial data to Supabase
