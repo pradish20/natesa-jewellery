@@ -163,6 +163,16 @@ export const api = {
       body: JSON.stringify(payload)
     }),
 
+  adminUpdatePassword: (payload: { email: string; newPassword: string; token?: string }): Promise<{
+    success: boolean;
+    message: string;
+    saved_in_supabase_table: boolean;
+  }> =>
+    fetchJSON('/api/admin/update-password', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    }),
+
   // Supabase Status, Config & Migration
   getSupabaseStatus: (): Promise<SupabaseLiveStatus> => fetchJSON<SupabaseLiveStatus>('/api/supabase/status'),
 

@@ -83,11 +83,12 @@ export const ResetPasswordView: React.FC<ResetPasswordViewProps> = ({
     setSuccessMsg('');
 
     try {
-      const res = await api.resetPassword({
+      const res = await api.adminUpdatePassword({
         token,
+        email: email || '',
         newPassword: newPassword.trim()
       });
-      setSuccessMsg(res.message || 'Password updated successfully! You can now sign in with your new password.');
+      setSuccessMsg(res.message || 'Password updated successfully! Account updated in Supabase admin_users table.');
       setNewPassword('');
       setConfirmPassword('');
       setTimeout(() => {

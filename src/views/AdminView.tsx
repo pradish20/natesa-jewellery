@@ -25,6 +25,170 @@ interface AdminViewProps {
   onNavigateToResetPassword?: () => void;
 }
 
+// ---------------- EMBEDDED ADMIN FOOTER PASSWORD RESET ----------------
+const AdminFooterPasswordReset: React.FC<{ defaultEmail?: string }> = ({ defaultEmail = 'natesajewellery@gmail.com' }) => {
+  const [resetEmail, setResetEmail] = useState<string>(defaultEmail);
+  const [newPass, setNewPass] = useState<string>('');
+  const [confirmPass, setConfirmPass] = useState<string>('');
+  const [showPass, setShowPass] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setMsg(null);
+
+    const cleanEmail = resetEmail.trim();
+    const cleanNewPass = newPass.trim();
+
+    if (!cleanEmail) {
+      setMsg({ type: 'error', text: 'Please enter the registered admin email address.' });
+      return;
+    }
+
+    if (!cleanNewPass || cleanNewPass.length < 6) {
+      setMsg({ type: 'error', text: 'New password must be at least 6 characters long.' });
+      return;
+    }
+
+    if (cleanNewPass !== confirmPass.trim()) {
+      setMsg({ type: 'error', text: 'Passwords do not match. Please re-type your new password.' });
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const res = await api.adminUpdatePassword({
+        email: cleanEmail,
+        newPassword: cleanNewPass
+      });
+
+      setMsg({
+        type: 'success',
+        text: res.message || 'Password updated successfully! Credentials automatically saved to Supabase admin_users table.'
+      });
+      setNewPass('');
+      setConfirmPass('');
+    } catch (err: any) {
+      setMsg({
+        type: 'error',
+        text: err.message || 'Failed to update password. Password reset is strictly restricted to registered admin accounts.'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="mt-8 pt-6 border-t-2 border-[#D4AF37]/30 bg-[#292321] text-[#FCF8F1] rounded-2xl p-5 sm:p-6 shadow-xl space-y-4 w-full">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#D4AF37]/20 pb-3">
+        <div className="flex items-center gap-2">
+          <div className="p-2 bg-[#8F171B] text-[#D4AF37] rounded-xl shadow-xs">
+            <ShieldCheck className="w-5 h-5" />
+          </div>
+          <div>
+            <h3 className="font-serif text-base sm:text-lg font-bold text-[#EBDCC5]">
+              Admin Password Reset & Supabase Table Sync
+            </h3>
+            <p className="text-xs text-gray-400">
+              Only accessible in the Admin Page. Updating your password automatically syncs your credentials to the Supabase <code className="text-[#D4AF37] bg-black/40 px-1.5 py-0.5 rounded font-mono">admin_users</code> table.
+            </p>
+          </div>
+        </div>
+        <span className="text-[10px] uppercase font-mono font-semibold text-[#D4AF37] bg-white/10 px-2.5 py-1 rounded-full border border-[#D4AF37]/30 self-start sm:self-auto">
+          Admin Page Only
+        </span>
+      </div>
+
+      {msg && (
+        <div className={`p-3.5 rounded-xl text-xs font-semibold flex items-start gap-2.5 ${
+          msg.type === 'success' 
+            ? 'bg-emerald-950/80 text-emerald-200 border border-emerald-500/40' 
+            : 'bg-rose-950/80 text-rose-200 border border-rose-500/40'
+        }`}>
+          {msg.type === 'success' ? (
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+          ) : (
+            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+          )}
+          <span>{msg.text}</span>
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-12 gap-3.5 items-end">
+        <div className="sm:col-span-4">
+          <label className="block text-[11px] font-bold text-[#D4AF37] uppercase tracking-wider mb-1">
+            Admin Email Address
+          </label>
+          <input
+            type="email"
+            required
+            value={resetEmail}
+            onChange={(e) => setResetEmail(e.target.value)}
+            placeholder="natesajewellery@gmail.com"
+            className="w-full bg-white/10 border border-[#D4AF37]/40 rounded-xl px-3 py-2 text-xs text-white placeholder-gray-500 focus:outline-hidden focus:border-[#D4AF37]"
+          />
+        </div>
+
+        <div className="sm:col-span-3">
+          <label className="block text-[11px] font-bold text-[#D4AF37] uppercase tracking-wider mb-1">
+            New Admin Password
+          </label>
+          <div className="relative">
+            <input
+              type={showPass ? 'text' : 'password'}
+              required
+              minLength={6}
+              value={newPass}
+              onChange={(e) => setNewPass(e.target.value)}
+              placeholder="••••••••"
+              className="w-full bg-white/10 border border-[#D4AF37]/40 rounded-xl px-3 py-2 text-xs text-white font-mono placeholder-gray-500 focus:outline-hidden focus:border-[#D4AF37] pr-8"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPass(!showPass)}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white cursor-pointer"
+            >
+              {showPass ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+            </button>
+          </div>
+        </div>
+
+        <div className="sm:col-span-3">
+          <label className="block text-[11px] font-bold text-[#D4AF37] uppercase tracking-wider mb-1">
+            Confirm Password
+          </label>
+          <input
+            type={showPass ? 'text' : 'password'}
+            required
+            minLength={6}
+            value={confirmPass}
+            onChange={(e) => setConfirmPass(e.target.value)}
+            placeholder="••••••••"
+            className="w-full bg-white/10 border border-[#D4AF37]/40 rounded-xl px-3 py-2 text-xs text-white font-mono placeholder-gray-500 focus:outline-hidden focus:border-[#D4AF37]"
+          />
+        </div>
+
+        <div className="sm:col-span-2">
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-[#8F171B] hover:bg-[#580E11] text-white py-2 px-3 rounded-xl font-bold text-xs transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 h-[38px] whitespace-nowrap"
+          >
+            {loading ? (
+              <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#D4AF37]" />
+            ) : (
+              <KeyRound className="w-3.5 h-3.5 text-[#D4AF37]" />
+            )}
+            <span>{loading ? 'Saving...' : 'Update Password'}</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+};
+
 export const AdminView: React.FC<AdminViewProps> = ({
   products,
   categories,
@@ -91,7 +255,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [showSetupGuide, setShowSetupGuide] = useState<boolean>(false);
 
   // Active Admin Tab
-  const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'categories' | 'slides' | 'store_contact' | 'orders' | 'rates' | 'supabase' | 'cloudinary'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'categories' | 'slides' | 'store_contact' | 'orders' | 'rates' | 'supabase' | 'cloudinary' | 'password-reset'>('overview');
 
   // Featured Slides State
   const [slidesList, setSlidesList] = useState<FeaturedSlide[]>(slides || INITIAL_FEATURED_SLIDES);
@@ -761,8 +925,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
   // ---------------- LOGIN SCREEN (MINIMALIST & CLEAN) ----------------
   if (!isAuthenticated) {
     return (
-      <div className="min-h-[80vh] flex items-center justify-center px-4 py-12">
-        <div className="w-full max-w-sm bg-white rounded-2xl border border-[#D4AF37]/50 p-6 sm:p-8 shadow-xl space-y-6 text-center">
+      <div className="min-h-[80vh] flex flex-col items-center justify-center px-4 py-8 max-w-4xl mx-auto space-y-6 w-full">
+        <div className="w-full max-w-md bg-white rounded-2xl border border-[#D4AF37]/50 p-6 sm:p-8 shadow-xl space-y-6 text-center">
           
           <div className="w-14 h-14 rounded-full bg-[#8F171B] text-[#D4AF37] flex items-center justify-center mx-auto shadow-md">
             <Lock className="w-7 h-7" />
@@ -857,6 +1021,9 @@ export const AdminView: React.FC<AdminViewProps> = ({
             </div>
           )}
         </div>
+
+        {/* Embedded Admin Footer Password Reset Section */}
+        <AdminFooterPasswordReset defaultEmail={adminEmail || 'natesajewellery@gmail.com'} />
       </div>
     );
   }
@@ -945,7 +1112,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
           { id: 'categories', label: 'Categories Manager', icon: Folders },
           { id: 'rates', label: 'Live Rates', icon: Settings },
           { id: 'supabase', label: 'Supabase & Database', icon: Database },
-          { id: 'cloudinary', label: 'Cloudinary CDN', icon: Cloud }
+          { id: 'cloudinary', label: 'Cloudinary CDN', icon: Cloud },
+          { id: 'password-reset', label: 'Admin Security & Reset', icon: ShieldCheck }
         ].map((tab) => {
           const Icon = tab.icon;
           return (
@@ -2400,6 +2568,32 @@ export const AdminView: React.FC<AdminViewProps> = ({
             </form>
           </div>
         </div>
+      )}
+
+      {/* TAB: ADMIN SECURITY & PASSWORD RESET */}
+      {activeTab === 'password-reset' && (
+        <div className="space-y-6 animate-in fade-in duration-200 w-full">
+          <div className="bg-white p-6 rounded-2xl border border-[#D4AF37]/40 shadow-xs space-y-4">
+            <div className="flex items-center gap-3 border-b border-[#D4AF37]/20 pb-4">
+              <div className="p-3 bg-[#8F171B] text-[#D4AF37] rounded-xl shadow-xs">
+                <ShieldCheck className="w-6 h-6" />
+              </div>
+              <div>
+                <h2 className="font-serif text-xl font-bold text-[#292321]">Admin Password & Credentials Management</h2>
+                <p className="text-xs text-gray-500">
+                  Update administrator credentials. Resetting your password automatically updates your account in the Supabase <code className="text-[#8F171B] bg-red-50 px-1.5 py-0.5 rounded font-mono font-bold">admin_users</code> table and Supabase Auth.
+                </p>
+              </div>
+            </div>
+
+            <AdminFooterPasswordReset defaultEmail={currentUser?.email || 'natesajewellery@gmail.com'} />
+          </div>
+        </div>
+      )}
+
+      {/* Admin Page Footer Password Reset Section */}
+      {activeTab !== 'password-reset' && (
+        <AdminFooterPasswordReset defaultEmail={currentUser?.email || 'natesajewellery@gmail.com'} />
       )}
 
     </div>
