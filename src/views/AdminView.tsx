@@ -1040,6 +1040,17 @@ export const AdminView: React.FC<AdminViewProps> = ({
     }
   };
 
+  const handleDeleteOrder = async (orderId: string) => {
+    if (window.confirm(`Are you sure you want to delete order ${orderId}? This will remove it from Supabase.`)) {
+      try {
+        await api.deleteOrder(orderId);
+        await onRefreshData();
+      } catch (err: any) {
+        alert('Failed to delete order: ' + err.message);
+      }
+    }
+  };
+
   // Create Manual Order in Supabase
   const handleCreateOrder = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1631,6 +1642,14 @@ export const AdminView: React.FC<AdminViewProps> = ({
                               title="Toggle Details"
                             >
                               {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                            </button>
+
+                            <button
+                              onClick={() => handleDeleteOrder(ord.id)}
+                              className="bg-white hover:bg-red-50 border border-red-200 text-red-600 p-1.5 rounded-xl cursor-pointer transition-colors"
+                              title="Delete Order from Supabase"
+                            >
+                              <Trash2 className="w-4 h-4" />
                             </button>
                           </div>
                         </div>

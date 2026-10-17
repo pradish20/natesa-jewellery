@@ -112,6 +112,11 @@ export const api = {
       body: JSON.stringify({ status, tracking_number: trackingNumber, courier_name: courierName })
     }),
 
+  deleteOrder: (id: string): Promise<{ success: boolean; deleted_id: string; deleted_from_supabase?: boolean }> =>
+    fetchJSON(`/api/orders/${id}`, {
+      method: 'DELETE'
+    }),
+
   // Enquiries
   submitEnquiry: (enquiry: Partial<Enquiry>): Promise<{ success: boolean; enquiry: Enquiry }> =>
     fetchJSON('/api/enquiries', {

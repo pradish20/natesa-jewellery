@@ -121,43 +121,14 @@ function loadOrders(): Order[] {
     if (fs.existsSync(ORDERS_FILE)) {
       const raw = fs.readFileSync(ORDERS_FILE, 'utf-8');
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed)) {
+        return parsed.filter((o: any) => o.id !== 'NJ-2026-8841' && o.customer_name !== 'Ananya Sundaram');
+      }
     }
   } catch (err) {
     console.error('Error reading orders file:', err);
   }
-  return [
-    {
-      id: 'NJ-2026-8841',
-      customer_name: 'Ananya Sundaram',
-      email: 'ananya.s@example.com',
-      phone: '+91 98401 23456',
-      address: '42, Temple View Road, Near Tank Street',
-      city: 'Krishnagiri',
-      state: 'Tamil Nadu',
-      pincode: '635001',
-      items: [
-        {
-          product_id: 'prod-2',
-          product_name: 'Guttapusalu Antique Ruby Jhumkas',
-          net_weight: 18.2,
-          metal_type: '22k_gold',
-          price_per_unit: 141200,
-          quantity: 1,
-          image_url: 'https://images.unsplash.com/photo-1630019852942-f89202989a59?auto=format&fit=crop&w=800&q=80'
-        }
-      ],
-      subtotal: 137087,
-      gst_total: 4113,
-      grand_total: 141200,
-      payment_method: 'COD',
-      payment_status: 'Pending',
-      status: 'Processing',
-      tracking_number: 'DTDC-TN992831',
-      courier_name: 'DTDC Express Courier',
-      created_at: new Date(Date.now() - 86400000 * 2).toISOString()
-    }
-  ];
+  return [];
 }
 
 function saveOrders(orders: Order[]) {
@@ -1117,7 +1088,7 @@ async function requireAdminAuth(req: Request, res: Response, next: express.NextF
 
 // ---------------- ADMIN CREDENTIALS & AUTH IN SUPABASE ----------------
 
-// Admin Login Route (Strictly authenticates via Supabase Auth)
+// Admin Login Route (Strictly authenticates via Supabase Auth or verified stored password)
 app.post('/api/admin/login', async (req: Request, res: Response) => {
   const { email, password } = req.body;
   const cleanEmail = (email || '').toLowerCase().trim();
@@ -1127,193 +1098,107 @@ app.post('/api/admin/login', async (req: Request, res: Response) => {
     return res.status(400).json({ error: 'Admin email and password are required.' });
   }
 
-  if (!supabase) {
-    return res.status(503).json({
-      error: 'Supabase is not connected yet. Please connect your Supabase project in the Admin Portal.'
-    });
-  }
-
-  // 3. Supabase is connected: Authenticate via Supabase Auth + verify admin_users table
   try {
-    // Check admin_users table in Supabase
-    const { data: adminRecord } = await supabase
-      .from('admin_users')
-      .select('*')
-      .eq('email', cleanEmail)
-      .maybeSingle();
-
-    // Check if table contains an old/legacy plaintext password matching what user entered
-    if (adminRecord && (adminRecord as any).password && (adminRecord as any).password === cleanPassword) {
-      // User entered the password stored in admin_users table! Migrate them to Supabase Auth automatically
+    // 1. Fetch record from Supabase admin_users if connected
+    let adminRecord: any = null;
+    if (supabase) {
       try {
-        if (supabase.auth.admin) {
-          await supabase.auth.admin.createUser({
-            email: cleanEmail,
-            password: cleanPassword,
-            email_confirm: true
-          });
-        }
-      } catch (e) {
-        // ignore if already exists or no service key
-      }
-    }
-
-    // Role authorization check (case-insensitive & permissive for admin synonyms)
-    const roleStr = ((adminRecord?.role) || '').toLowerCase().trim();
-    if (adminRecord && roleStr !== '' && !['super_admin', 'admin', 'owner', 'administrator', 'manager'].includes(roleStr)) {
-      return res.status(403).json({ error: `User with role "${adminRecord.role}" is not an authorized administrator.` });
-    }
-
-    // Attempt sign-in with Supabase Authentication
-    let { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-      email: cleanEmail,
-      password: cleanPassword,
-    });
-
-    // If login failed in Supabase Auth, attempt automatic recovery or credential sync
-    if (authError || !authData?.user) {
-      const isAuthorizedAdmin =
-        cleanEmail === 'natesajewellery@gmail.com' ||
-        cleanEmail === 'achupradish20@gmail.com' ||
-        Boolean(adminRecord) ||
-        currentAdminUsers.some(u => u.email.toLowerCase().trim() === cleanEmail);
-
-      if (isAuthorizedAdmin) {
-        // 1. Try Supabase Auth Admin API if service role key is active
-        if (supabase.auth.admin) {
-          try {
-            const { data: usersList } = await supabase.auth.admin.listUsers();
-            const existingAuthUser = usersList?.users?.find((u: any) => u.email?.toLowerCase().trim() === cleanEmail);
-
-            if (existingAuthUser) {
-              // Update user password & confirm email in Supabase Auth
-              const { error: adminUpdateErr } = await supabase.auth.admin.updateUserById(existingAuthUser.id, {
-                password: cleanPassword,
-                email_confirm: true
-              });
-              if (!adminUpdateErr) {
-                const retryLogin = await supabase.auth.signInWithPassword({
-                  email: cleanEmail,
-                  password: cleanPassword,
-                });
-                if (retryLogin.data?.user) {
-                  authData = retryLogin.data;
-                  authError = null;
-                }
-              }
-            } else {
-              // Create user in Supabase Auth with this password
-              const { data: created, error: createErr } = await supabase.auth.admin.createUser({
-                email: cleanEmail,
-                password: cleanPassword,
-                email_confirm: true,
-              });
-              if (!createErr && created?.user) {
-                const retryLogin = await supabase.auth.signInWithPassword({
-                  email: cleanEmail,
-                  password: cleanPassword,
-                });
-                if (retryLogin.data?.user) {
-                  authData = retryLogin.data;
-                  authError = null;
-                }
-              }
-            }
-          } catch (adminEx) {
-            console.warn('Supabase auth admin sync notice:', adminEx);
-          }
-        }
-
-        // 2. Try Supabase Auth signUp if still not logged in
-        if (authError) {
-          try {
-            const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
-              email: cleanEmail,
-              password: cleanPassword,
-            });
-            if (!signUpErr && signUpData?.user) {
-              if (signUpData.session) {
-                authData = signUpData as any;
-                authError = null;
-              }
-            }
-          } catch (signUpEx) {
-            console.warn('Auto-signup notice:', signUpEx);
-          }
-        }
-      }
-    }
-
-    // If authentication was successful
-    if (authData?.user) {
-      const authUserId = authData.user.id;
-      const finalRole = adminRecord?.role || 'super_admin';
-      const finalName = adminRecord?.name || 'Natesa Administrator';
-
-      await supabase
-        .from('admin_users')
-        .upsert([
-          {
-            id: authUserId,
-            email: cleanEmail,
-            name: finalName,
-            role: finalRole,
-            last_login: new Date().toISOString()
-          }
-        ], { onConflict: 'email' });
-
-      return res.json({
-        success: true,
-        user: {
-          id: authUserId,
-          email: cleanEmail,
-          name: finalName,
-          role: finalRole,
-          last_login: new Date().toISOString()
-        },
-        token: authData.session?.access_token || authUserId,
-        source: 'supabase_auth'
-      });
-    }
-
-    // 3. Fail-safe Authorized Admin Login Check (matches stored updated password in admin_users or local cache)
-    const storedPassInDb = (adminRecord as any)?.password;
-    const storedPassInLocal = (currentAdminUsers.find(u => u.email.toLowerCase().trim() === cleanEmail) as any)?.password;
-    const isAuthorizedAdmin =
-      cleanEmail === 'natesajewellery@gmail.com' ||
-      cleanEmail === 'achupradish20@gmail.com' ||
-      Boolean(adminRecord);
-
-    if (isAuthorizedAdmin && (cleanPassword === storedPassInDb || cleanPassword === storedPassInLocal || cleanPassword.length >= 6)) {
-      const finalRole = adminRecord?.role || 'super_admin';
-      const finalName = adminRecord?.name || 'Natesa Administrator';
-      const authUserId = adminRecord?.id || `admin-${Date.now()}`;
-
-      // Synchronize back to admin_users table
-      try {
-        await supabase
+        const { data } = await supabase
           .from('admin_users')
-          .upsert([
-            {
-              id: authUserId,
-              email: cleanEmail,
-              name: finalName,
-              role: finalRole,
-              password: cleanPassword,
-              last_login: new Date().toISOString()
-            }
-          ], { onConflict: 'email' });
+          .select('*')
+          .eq('email', cleanEmail)
+          .maybeSingle();
+        if (data) adminRecord = data;
       } catch {
         // ignore
       }
+    }
 
+    const localAdmin = currentAdminUsers.find(u => u.email.toLowerCase().trim() === cleanEmail);
+    const isAuthorizedAdmin =
+      cleanEmail === 'natesajewellery@gmail.com' ||
+      cleanEmail === 'achupradish20@gmail.com' ||
+      Boolean(adminRecord) ||
+      Boolean(localAdmin);
+
+    if (!isAuthorizedAdmin) {
+      return res.status(401).json({
+        error: `Access denied. "${cleanEmail}" is not a registered administrator.`
+      });
+    }
+
+    // Role authorization check
+    const roleStr = ((adminRecord?.role || localAdmin?.role) || '').toLowerCase().trim();
+    if (roleStr !== '' && !['super_admin', 'admin', 'owner', 'administrator', 'manager'].includes(roleStr)) {
+      return res.status(403).json({ error: `User with role "${roleStr}" is not an authorized administrator.` });
+    }
+
+    // 2. Check if a password was explicitly set in DB or local cache
+    const storedPassInDb = adminRecord?.password;
+    const storedPassInLocal = (localAdmin as any)?.password;
+    const hasKnownStoredPassword = Boolean(storedPassInDb || storedPassInLocal);
+
+    if (hasKnownStoredPassword) {
+      // If password was set, user MUST enter THAT exact password!
+      const matchesStored = (storedPassInDb && cleanPassword === storedPassInDb) || (storedPassInLocal && cleanPassword === storedPassInLocal);
+      if (!matchesStored) {
+        return res.status(401).json({
+          error: `Incorrect password for "${cleanEmail}". Please check your password and try again.`
+        });
+      }
+
+      // Valid password! Ensure account exists in Supabase Auth as well
+      if (supabase) {
+        try {
+          const authRes = await supabase.auth.signInWithPassword({
+            email: cleanEmail,
+            password: cleanPassword
+          });
+          if (authRes.data?.user) {
+            return res.json({
+              success: true,
+              user: {
+                id: authRes.data.user.id,
+                email: cleanEmail,
+                name: adminRecord?.name || localAdmin?.name || 'Natesa Administrator',
+                role: adminRecord?.role || localAdmin?.role || 'super_admin',
+                last_login: new Date().toISOString()
+              },
+              token: authRes.data.session?.access_token || authRes.data.user.id,
+              source: 'supabase_auth'
+            });
+          }
+
+          // If signInWithPassword failed because user isn't in Auth yet, sync user to Auth
+          if (supabase.auth.admin) {
+            const { data: usersList } = await supabase.auth.admin.listUsers();
+            const existingAuthUser = usersList?.users?.find((u: any) => u.email?.toLowerCase().trim() === cleanEmail);
+            if (existingAuthUser) {
+              await supabase.auth.admin.updateUserById(existingAuthUser.id, {
+                password: cleanPassword,
+                email_confirm: true
+              });
+            } else {
+              await supabase.auth.admin.createUser({
+                email: cleanEmail,
+                password: cleanPassword,
+                email_confirm: true
+              });
+            }
+          }
+        } catch (authErr) {
+          console.warn('Supabase auth sync notice:', authErr);
+        }
+      }
+
+      const authUserId = adminRecord?.id || localAdmin?.id || `admin-${Date.now()}`;
       return res.json({
         success: true,
         user: {
           id: authUserId,
           email: cleanEmail,
-          name: finalName,
-          role: finalRole,
+          name: adminRecord?.name || localAdmin?.name || 'Natesa Administrator',
+          role: adminRecord?.role || localAdmin?.role || 'super_admin',
           last_login: new Date().toISOString()
         },
         token: authUserId,
@@ -1321,31 +1206,48 @@ app.post('/api/admin/login', async (req: Request, res: Response) => {
       });
     }
 
-    // Provide detailed and helpful explanation if login failed
-    const errMsg = authError?.message || '';
-    if (errMsg.toLowerCase().includes('invalid login credentials')) {
-      if (!adminRecord) {
-        return res.status(401).json({
-          error: `Account not found in admin list. "${cleanEmail}" is not listed in the Supabase "admin_users" table, and does not exist in Supabase Authentication. Please add this user in Supabase Dashboard -> Authentication -> Users (Click "Add User" -> "Create User"), and insert a row into the admin_users table.`
+    // 3. If no stored password in DB or local cache yet, authenticate directly via Supabase Auth
+    if (supabase) {
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: cleanEmail,
+        password: cleanPassword,
+      });
+
+      if (authData?.user && !authError) {
+        const authUserId = authData.user.id;
+        const finalRole = adminRecord?.role || localAdmin?.role || 'super_admin';
+        const finalName = adminRecord?.name || localAdmin?.name || 'Natesa Administrator';
+
+        // Remember password in local admin cache
+        if (localAdmin) (localAdmin as any).password = cleanPassword;
+
+        return res.json({
+          success: true,
+          user: {
+            id: authUserId,
+            email: cleanEmail,
+            name: finalName,
+            role: finalRole,
+            last_login: new Date().toISOString()
+          },
+          token: authData.session?.access_token || authUserId,
+          source: 'supabase_auth'
         });
       }
-      return res.status(401).json({
-        error: `Invalid password for "${cleanEmail}". Make sure you are using the new password you set.`
-      });
-    }
 
-    if (errMsg.toLowerCase().includes('email not confirmed')) {
-      return res.status(401).json({
-        error: `Email "${cleanEmail}" is not confirmed in Supabase Authentication. In Supabase Dashboard -> Authentication -> Users, click on the user and select "Confirm User", or check your inbox.`
-      });
+      if (authError) {
+        return res.status(401).json({
+          error: `Incorrect password for "${cleanEmail}". Make sure you enter the correct password set for your account.`
+        });
+      }
     }
 
     return res.status(401).json({
-      error: `Supabase Auth error: ${errMsg || 'Invalid email or password'}.`
+      error: `Incorrect password for "${cleanEmail}".`
     });
 
   } catch (err: any) {
-    console.error('Admin login error with Supabase:', err);
+    console.error('Admin login error:', err);
     return res.status(500).json({ error: 'Server error during authentication: ' + err.message });
   }
 });
@@ -2255,15 +2157,17 @@ app.get('/api/orders', async (req: Request, res: Response) => {
 
         // Ensure orders are sorted by date descending (newest on top)
         parsedOrders.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-        currentOrders = parsedOrders;
-        return res.json(parsedOrders);
+        const realOrders = parsedOrders.filter(o => o.id !== 'NJ-2026-8841' && o.customer_name !== 'Ananya Sundaram');
+        currentOrders = realOrders;
+        return res.json(realOrders);
       }
     } catch (e: any) {
       console.warn('Supabase orders fetch exception:', e?.message || e);
     }
   }
 
-  res.json(currentOrders);
+  const cleanCurrentOrders = currentOrders.filter(o => o.id !== 'NJ-2026-8841' && o.customer_name !== 'Ananya Sundaram');
+  res.json(cleanCurrentOrders);
 });
 
 app.get('/api/orders/:query', async (req: Request, res: Response) => {
@@ -2389,6 +2293,25 @@ app.put('/api/orders/:id/status', async (req: Request, res: Response) => {
   }
 
   res.json(currentOrders[index]);
+});
+
+// Delete Order from Supabase and Local Cache
+app.delete('/api/orders/:id', async (req: Request, res: Response) => {
+  const { id } = req.params;
+  currentOrders = currentOrders.filter(o => o.id !== id);
+  saveOrders(currentOrders);
+
+  let deletedFromSupabase = false;
+  if (supabase) {
+    try {
+      const { error } = await supabase.from('orders').delete().eq('id', id);
+      if (!error) deletedFromSupabase = true;
+    } catch (e) {
+      console.error('Supabase order delete error:', e);
+    }
+  }
+
+  res.json({ success: true, deleted_id: id, deleted_from_supabase: deletedFromSupabase });
 });
 
 // Enquiries
