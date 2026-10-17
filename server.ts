@@ -22,6 +22,8 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // ---------------- LOCAL / PERSISTENT STORE STATE ----------------
 const SLIDES_FILE = path.resolve(__dirname, 'data', 'featured-slides.json');
 const STORE_CONTACT_FILE = path.resolve(__dirname, 'data', 'store-contact.json');
+const CATEGORIES_FILE = path.resolve(__dirname, 'data', 'categories.json');
+const PRODUCTS_FILE = path.resolve(__dirname, 'data', 'products.json');
 
 function loadFeaturedSlides(): FeaturedSlide[] {
   try {
@@ -67,9 +69,55 @@ function saveStoreContact(contact: StoreContactSettings) {
   }
 }
 
+function loadCategories(): Category[] {
+  try {
+    if (fs.existsSync(CATEGORIES_FILE)) {
+      const raw = fs.readFileSync(CATEGORIES_FILE, 'utf-8');
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch (err) {
+    console.error('Error reading categories file:', err);
+  }
+  return [...INITIAL_CATEGORIES];
+}
+
+function saveCategories(categories: Category[]) {
+  try {
+    const dir = path.dirname(CATEGORIES_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(CATEGORIES_FILE, JSON.stringify(categories, null, 2));
+  } catch (err) {
+    console.error('Error saving categories file:', err);
+  }
+}
+
+function loadProducts(): Product[] {
+  try {
+    if (fs.existsSync(PRODUCTS_FILE)) {
+      const raw = fs.readFileSync(PRODUCTS_FILE, 'utf-8');
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch (err) {
+    console.error('Error reading products file:', err);
+  }
+  return [...INITIAL_PRODUCTS];
+}
+
+function saveProducts(products: Product[]) {
+  try {
+    const dir = path.dirname(PRODUCTS_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(PRODUCTS_FILE, JSON.stringify(products, null, 2));
+  } catch (err) {
+    console.error('Error saving products file:', err);
+  }
+}
+
 let currentRates: RateSettings = { ...INITIAL_RATES };
-let currentProducts: Product[] = [...INITIAL_PRODUCTS];
-let currentCategories: Category[] = [...INITIAL_CATEGORIES];
+let currentProducts: Product[] = loadProducts();
+let currentCategories: Category[] = loadCategories();
 let currentSlides: FeaturedSlide[] = loadFeaturedSlides();
 let currentStoreContact: StoreContactSettings = loadStoreContact();
 let currentOrders: Order[] = [
@@ -1723,7 +1771,25 @@ app.post('/api/products', requireAdminAuth, async (req: Request, res: Response) 
   let supabaseErrMsg = '';
   if (supabase) {
     try {
-      const { error } = await supabase.from('products').upsert([newProduct], { onConflict: 'id' });
+      const dbProductRecord = {
+        id: newProduct.id,
+        name: newProduct.name,
+        slug: newProduct.slug,
+        category_slug: newProduct.category_slug,
+        metal_type: newProduct.metal_type,
+        net_weight: newProduct.net_weight,
+        wastage_percent: newProduct.wastage_percent,
+        making_charges: newProduct.making_charges,
+        purity_hallmark: newProduct.purity_hallmark,
+        description: newProduct.description,
+        image_url: newProduct.image_url,
+        secondary_image_url: newProduct.secondary_image_url || null,
+        is_featured: newProduct.is_featured,
+        in_stock: newProduct.in_stock,
+        created_at: newProduct.created_at
+      };
+
+      const { error } = await supabase.from('products').upsert([dbProductRecord], { onConflict: 'id' });
       if (!error) {
         savedInSupabase = true;
       } else {
@@ -1736,13 +1802,14 @@ app.post('/api/products', requireAdminAuth, async (req: Request, res: Response) 
     }
   }
 
-  // Update in-memory
+  // Update in-memory & file
   const existingIdx = currentProducts.findIndex(p => p.id === newProduct.id);
   if (existingIdx > -1) {
     currentProducts[existingIdx] = newProduct;
   } else {
     currentProducts.unshift(newProduct);
   }
+  saveProducts(currentProducts);
 
   res.status(201).json({ ...newProduct, saved_in_supabase: savedInSupabase, supabase_error: supabaseErrMsg || undefined });
 });
@@ -1758,7 +1825,7 @@ app.put('/api/products/:id', requireAdminAuth, async (req: Request, res: Respons
   }
 
   const updated: Product = {
-    ...(currentProducts[index] || {}),
+    ...(currentProducts[index] || {} as Product),
     ...req.body,
     id,
     ...(updatedSlug ? { slug: updatedSlug } : {})
@@ -1769,14 +1836,32 @@ app.put('/api/products/:id', requireAdminAuth, async (req: Request, res: Respons
   } else {
     currentProducts.unshift(updated);
   }
+  saveProducts(currentProducts);
 
   let savedInSupabase = false;
   let supabaseErrMsg = '';
   if (supabase) {
     try {
+      const dbProductRecord = {
+        id: updated.id,
+        name: updated.name,
+        slug: updated.slug,
+        category_slug: updated.category_slug,
+        metal_type: updated.metal_type,
+        net_weight: Number(updated.net_weight) || 0,
+        wastage_percent: Number(updated.wastage_percent) || 0,
+        making_charges: Number(updated.making_charges) || 0,
+        purity_hallmark: updated.purity_hallmark,
+        description: updated.description || '',
+        image_url: updated.image_url,
+        secondary_image_url: updated.secondary_image_url || null,
+        is_featured: Boolean(updated.is_featured),
+        in_stock: Boolean(updated.in_stock)
+      };
+
       const { error } = await supabase
         .from('products')
-        .upsert([updated], { onConflict: 'id' });
+        .upsert([dbProductRecord], { onConflict: 'id' });
 
       if (!error) {
         savedInSupabase = true;
@@ -1796,6 +1881,7 @@ app.put('/api/products/:id', requireAdminAuth, async (req: Request, res: Respons
 app.delete('/api/products/:id', requireAdminAuth, async (req: Request, res: Response) => {
   const { id } = req.params;
   currentProducts = currentProducts.filter(p => p.id !== id);
+  saveProducts(currentProducts);
 
   let deletedFromSupabase = false;
   if (supabase) {
@@ -1823,6 +1909,7 @@ app.get('/api/categories', async (req: Request, res: Response) => {
 
       if (!error && data && data.length > 0) {
         currentCategories = data as Category[];
+        saveCategories(currentCategories);
         return res.json(data);
       }
     } catch (e) {
@@ -1864,7 +1951,16 @@ app.post('/api/categories', requireAdminAuth, async (req: Request, res: Response
   let supabaseErrMsg = '';
   if (supabase) {
     try {
-      const { error } = await supabase.from('categories').upsert([newCategory], { onConflict: 'id' });
+      const dbCatRecord = {
+        id: newCategory.id,
+        name: newCategory.name,
+        slug: newCategory.slug,
+        description: newCategory.description || '',
+        banner_image_url: newCategory.banner_image_url || '',
+        display_order: Number(newCategory.display_order) || 0
+      };
+
+      const { error } = await supabase.from('categories').upsert([dbCatRecord], { onConflict: 'id' });
       if (!error) savedInSupabase = true;
       else {
         supabaseErrMsg = error.message;
@@ -1882,6 +1978,7 @@ app.post('/api/categories', requireAdminAuth, async (req: Request, res: Response
   } else {
     currentCategories.push(newCategory);
   }
+  saveCategories(currentCategories);
 
   res.status(201).json({ ...newCategory, saved_in_supabase: savedInSupabase, supabase_error: supabaseErrMsg || undefined });
 });
@@ -1908,14 +2005,24 @@ app.put('/api/categories/:id', requireAdminAuth, async (req: Request, res: Respo
   } else {
     currentCategories.push(updatedCategory);
   }
+  saveCategories(currentCategories);
 
   let savedInSupabase = false;
   let supabaseErrMsg = '';
   if (supabase) {
     try {
+      const dbCatRecord = {
+        id: updatedCategory.id,
+        name: updatedCategory.name,
+        slug: updatedCategory.slug,
+        description: updatedCategory.description || '',
+        banner_image_url: updatedCategory.banner_image_url || '',
+        display_order: Number(updatedCategory.display_order) || 0
+      };
+
       const { error } = await supabase
         .from('categories')
-        .upsert([updatedCategory], { onConflict: 'id' });
+        .upsert([dbCatRecord], { onConflict: 'id' });
 
       if (!error) savedInSupabase = true;
       else supabaseErrMsg = error.message;
@@ -1932,6 +2039,7 @@ app.put('/api/categories/:id', requireAdminAuth, async (req: Request, res: Respo
 app.delete('/api/categories/:id', requireAdminAuth, async (req: Request, res: Response) => {
   const { id } = req.params;
   currentCategories = currentCategories.filter(c => c.id !== id);
+  saveCategories(currentCategories);
 
   let deletedFromSupabase = false;
   if (supabase) {
