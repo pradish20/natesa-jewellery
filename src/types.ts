@@ -35,6 +35,8 @@ export interface Product {
   is_featured: boolean;
   in_stock: boolean;
   created_at?: string;
+  saved_in_supabase?: boolean;
+  supabase_error?: string;
 }
 
 export interface Category {
@@ -44,6 +46,9 @@ export interface Category {
   description: string;
   banner_image_url: string;
   display_order: number;
+  is_silver_only?: boolean;
+  saved_in_supabase?: boolean;
+  supabase_error?: string;
 }
 
 export interface CartItem {

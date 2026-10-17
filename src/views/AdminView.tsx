@@ -352,9 +352,13 @@ export const AdminView: React.FC<AdminViewProps> = ({
   // Forms / Modals
   const [showProductModal, setShowProductModal] = useState<boolean>(false);
   const [editingProduct, setEditingProduct] = useState<Partial<Product> | null>(null);
+  const [productSaving, setProductSaving] = useState<boolean>(false);
+  const [productSaveMsg, setProductSaveMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const [showCategoryModal, setShowCategoryModal] = useState<boolean>(false);
   const [editingCategory, setEditingCategory] = useState<Partial<Category> | null>(null);
+  const [categorySaving, setCategorySaving] = useState<boolean>(false);
+  const [categorySaveMsg, setCategorySaveMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Rates Form
   const [rateForm, setRateForm] = useState({
@@ -797,61 +801,143 @@ export const AdminView: React.FC<AdminViewProps> = ({
   // Product Submit
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingProduct?.name || !editingProduct?.category_slug) return;
-
-    if (editingProduct.id) {
-      await api.updateProduct(editingProduct.id, editingProduct);
-    } else {
-      await api.createProduct({
-        ...editingProduct,
-        metal_type: editingProduct.metal_type || '22k_gold',
-        net_weight: Number(editingProduct.net_weight) || 10,
-        wastage_percent: Number(editingProduct.wastage_percent) || 8.5,
-        making_charges: Number(editingProduct.making_charges) || 1000,
-        purity_hallmark: editingProduct.purity_hallmark || 'BIS 916 22K Hallmarked',
-        image_url: editingProduct.image_url || 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?auto=format&fit=crop&w=800&q=80',
-        is_featured: editingProduct.is_featured ?? true,
-        in_stock: editingProduct.in_stock ?? true
-      });
+    if (!editingProduct?.name) {
+      setProductSaveMsg({ type: 'error', text: 'Please enter a product name.' });
+      return;
     }
 
-    setShowProductModal(false);
-    setEditingProduct(null);
-    onRefreshData();
+    const catSlug = editingProduct.category_slug || categories[0]?.slug || 'gold-necklaces-malas';
+    setProductSaving(true);
+    setProductSaveMsg(null);
+
+    try {
+      if (editingProduct.id) {
+        const res = await api.updateProduct(editingProduct.id, {
+          ...editingProduct,
+          category_slug: catSlug
+        });
+        setProductSaveMsg({
+          type: 'success',
+          text: `Product updated successfully ${res.saved_in_supabase ? 'in Supabase' : 'locally'}!`
+        });
+      } else {
+        const res = await api.createProduct({
+          ...editingProduct,
+          category_slug: catSlug,
+          metal_type: editingProduct.metal_type || '22k_gold',
+          net_weight: Number(editingProduct.net_weight) || 10,
+          wastage_percent: Number(editingProduct.wastage_percent) || 8.5,
+          making_charges: Number(editingProduct.making_charges) || 1000,
+          purity_hallmark: editingProduct.purity_hallmark || 'BIS 916 22K Hallmarked',
+          image_url: editingProduct.image_url || 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?auto=format&fit=crop&w=800&q=80',
+          is_featured: editingProduct.is_featured ?? true,
+          in_stock: editingProduct.in_stock ?? true
+        });
+        setProductSaveMsg({
+          type: 'success',
+          text: `Product created successfully ${res.saved_in_supabase ? 'in Supabase' : 'locally'}!`
+        });
+      }
+
+      await onRefreshData();
+      setTimeout(() => {
+        setShowProductModal(false);
+        setEditingProduct(null);
+        setProductSaveMsg(null);
+      }, 700);
+    } catch (err: any) {
+      setProductSaveMsg({ type: 'error', text: err.message || 'Failed to save product.' });
+    } finally {
+      setProductSaving(false);
+    }
   };
 
   // Product Delete
   const handleDeleteProduct = async (id: string) => {
     if (confirm('Are you sure you want to delete this product?')) {
-      await api.deleteProduct(id);
-      onRefreshData();
+      try {
+        await api.deleteProduct(id);
+        await onRefreshData();
+      } catch (e: any) {
+        alert('Failed to delete product: ' + e.message);
+      }
     }
   };
 
   // Category Submit
   const handleSaveCategory = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingCategory?.name) return;
-
-    if (editingCategory.id) {
-      await api.updateCategory(editingCategory.id, editingCategory);
-    } else {
-      await api.createCategory({
-        ...editingCategory,
-        banner_image_url: editingCategory.banner_image_url || 'https://images.unsplash.com/photo-1601121141461-9d6647bca1ed?auto=format&fit=crop&w=800&q=80'
-      });
+    if (!editingCategory?.name) {
+      setCategorySaveMsg({ type: 'error', text: 'Please enter a category name.' });
+      return;
     }
 
-    setShowCategoryModal(false);
-    setEditingCategory(null);
-    onRefreshData();
+    setCategorySaving(true);
+    setCategorySaveMsg(null);
+
+    try {
+      if (editingCategory.id) {
+        const res = await api.updateCategory(editingCategory.id, editingCategory);
+        setCategorySaveMsg({
+          type: 'success',
+          text: `Category updated successfully ${res.saved_in_supabase ? 'in Supabase' : 'locally'}!`
+        });
+      } else {
+        const res = await api.createCategory({
+          ...editingCategory,
+          banner_image_url: editingCategory.banner_image_url || 'https://images.unsplash.com/photo-1601121141461-9d6647bca1ed?auto=format&fit=crop&w=800&q=80'
+        });
+        setCategorySaveMsg({
+          type: 'success',
+          text: `Category created successfully ${res.saved_in_supabase ? 'in Supabase' : 'locally'}!`
+        });
+      }
+
+      await onRefreshData();
+      setTimeout(() => {
+        setShowCategoryModal(false);
+        setEditingCategory(null);
+        setCategorySaveMsg(null);
+      }, 700);
+    } catch (err: any) {
+      setCategorySaveMsg({ type: 'error', text: err.message || 'Failed to save category.' });
+    } finally {
+      setCategorySaving(false);
+    }
   };
 
   // Category Delete
   const handleDeleteCategory = async (id: string) => {
     if (confirm('Are you sure you want to delete this category?')) {
-      await api.deleteCategory(id);
-      onRefreshData();
+      try {
+        await api.deleteCategory(id);
+        await onRefreshData();
+      } catch (e: any) {
+        alert('Failed to delete category: ' + e.message);
+      }
+    }
+  };
+
+  // Direct Category Card Banner Upload
+  const handleCategoryCardBannerUpload = async (cat: Category, file: File) => {
+    setImageUploadLoading(true);
+    try {
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        try {
+          const res = await api.uploadImage(reader.result as string);
+          await api.updateCategory(cat.id, { banner_image_url: res.url });
+          await onRefreshData();
+        } catch (err: any) {
+          alert('Failed to update banner image: ' + err.message);
+        } finally {
+          setImageUploadLoading(false);
+        }
+      };
+      reader.readAsDataURL(file);
+    } catch (e: any) {
+      alert('Error reading file: ' + e.message);
+      setImageUploadLoading(false);
     }
   };
 
@@ -1078,7 +1164,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
               title="Open separate Password Reset page"
             >
               <ShieldCheck className="w-3.5 h-3.5 text-[#D4AF37]" />
-              <span>Reset Password Page &rarr;</span>
+              <span>Reset Password Page →</span>
             </button>
           )}
 
@@ -1107,6 +1193,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
           { id: 'overview', label: 'Overview Metrics', icon: LayoutDashboard },
           { id: 'products', label: 'Products Manager', icon: Package },
           { id: 'categories', label: 'Categories Manager', icon: Folders },
+          { id: 'slides', label: 'Banner Preview Photos', icon: ImageIcon },
           { id: 'rates', label: 'Live Rates', icon: Settings },
           { id: 'supabase', label: 'Supabase & Database', icon: Database },
           { id: 'cloudinary', label: 'Cloudinary CDN', icon: Cloud },
@@ -1164,6 +1251,39 @@ export const AdminView: React.FC<AdminViewProps> = ({
               <span className="text-xs font-bold text-[#8F171B] uppercase">Live 22K Gold Rate</span>
               <div className="text-2xl sm:text-3xl font-bold font-mono text-[#8F171B]">{formatINR(rates.gold_22k_rate)}/g</div>
               <span className="text-[11px] text-gray-500">Storewide calculation benchmark</span>
+            </div>
+          </div>
+
+          {/* Quick Action Bar for Banner Preview Photos */}
+          <div className="bg-white p-5 rounded-2xl border border-[#D4AF37]/40 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-[#8F171B] text-[#D4AF37] rounded-xl shadow-xs shrink-0">
+                <ImageIcon className="w-6 h-6" />
+              </div>
+              <div>
+                <h4 className="font-serif text-base sm:text-lg font-bold text-[#292321]">
+                  Banner Preview Photos ({slidesList.length} Photos)
+                </h4>
+                <p className="text-xs text-gray-500">
+                  Manage homepage hero slider banner preview images stored in Supabase.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setActiveTab('slides' as any)}
+                className="bg-white border border-[#D4AF37]/60 hover:bg-[#FCF8F1] text-[#292321] px-4 py-2.5 rounded-xl font-bold text-xs transition-colors cursor-pointer"
+              >
+                View Banner Photos Gallery
+              </button>
+              <button
+                onClick={handleOpenAddSlide}
+                className="bg-[#8F171B] hover:bg-[#580E11] text-white px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-xs cursor-pointer transition-colors border border-[#D4AF37]/40"
+              >
+                <Plus className="w-4 h-4 text-[#D4AF37]" />
+                <span>Add Banner Preview Photo</span>
+              </button>
             </div>
           </div>
         </div>
@@ -1270,33 +1390,150 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 w-full">
             {categories.map((cat) => (
-              <div key={cat.id} className="bg-white rounded-xl border border-[#D4AF37]/30 overflow-hidden shadow-xs space-y-2">
-                <img src={cat.banner_image_url} alt={cat.name} className="w-full h-32 object-cover" />
-                <div className="p-3.5 space-y-2">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h4 className="font-bold text-sm text-[#292321]">{cat.name}</h4>
-                      <span className="text-[10px] text-[#8F171B] font-mono">{cat.slug}</span>
-                    </div>
-                    <div className="flex gap-1">
-                      <button
-                        onClick={() => {
-                          setEditingCategory(cat);
-                          setShowCategoryModal(true);
+              <div key={cat.id} className="bg-white rounded-xl border border-[#D4AF37]/30 overflow-hidden shadow-xs space-y-2 flex flex-col justify-between">
+                <div>
+                  <div className="relative w-full h-36 bg-gray-900 overflow-hidden group">
+                    <img src={cat.banner_image_url} alt={cat.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                    <label className="absolute bottom-2 right-2 bg-black/80 hover:bg-black text-[#D4AF37] px-2.5 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1.5 cursor-pointer shadow-md border border-[#D4AF37]/40 backdrop-blur-xs transition-colors">
+                      {imageUploadLoading ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
+                      <span>{imageUploadLoading ? 'Uploading...' : 'Upload Banner Photo'}</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleCategoryCardBannerUpload(cat, file);
                         }}
-                        className="p-1 text-blue-600 hover:bg-blue-50 rounded cursor-pointer"
-                      >
-                        <Edit className="w-3.5 h-3.5" />
-                      </button>
+                      />
+                    </label>
+                  </div>
+                  <div className="p-3.5 space-y-2">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h4 className="font-bold text-sm text-[#292321]">{cat.name}</h4>
+                        <span className="text-[10px] text-[#8F171B] font-mono">{cat.slug}</span>
+                      </div>
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => {
+                            setEditingCategory(cat);
+                            setShowCategoryModal(true);
+                          }}
+                          className="p-1 text-blue-600 hover:bg-blue-50 rounded cursor-pointer"
+                          title="Edit Category"
+                        >
+                          <Edit className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteCategory(cat.id)}
+                          className="p-1 text-red-600 hover:bg-red-50 rounded cursor-pointer"
+                          title="Delete Category"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-500 line-clamp-2">{cat.description}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 4: BANNER PREVIEW PHOTOS & HERO SLIDER */}
+      {activeTab === 'slides' && (
+        <div className="space-y-6 animate-in fade-in duration-200 w-full">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-5 rounded-2xl border border-[#D4AF37]/40 shadow-xs">
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-[#8F171B] text-[#D4AF37] rounded-xl shadow-xs shrink-0">
+                <ImageIcon className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-serif text-lg sm:text-xl font-bold text-[#292321]">
+                  Banner Preview Photos ({slidesList.length} Photos)
+                </h3>
+                <p className="text-xs text-gray-500">
+                  Manage homepage hero slider banner preview images stored in Supabase table <code className="text-[#8F171B] font-mono font-bold bg-red-50 px-1 py-0.5 rounded">featured_slides</code>.
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={handleOpenAddSlide}
+              className="bg-[#8F171B] hover:bg-[#580E11] text-white px-5 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 shadow-md cursor-pointer transition-all border border-[#D4AF37]/40 shrink-0"
+            >
+              <Plus className="w-4 h-4 text-[#D4AF37]" />
+              <span>Add Banner Preview Photo</span>
+            </button>
+          </div>
+
+          {/* Banner Photos Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 w-full">
+            {slidesList.map((slide) => (
+              <div
+                key={slide.id}
+                className="bg-white rounded-2xl border border-[#D4AF37]/30 overflow-hidden shadow-xs hover:shadow-md transition-all flex flex-col justify-between"
+              >
+                <div className="relative w-full h-48 bg-gray-900 overflow-hidden group">
+                  <img
+                    src={slide.image_url}
+                    alt={slide.title}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                  />
+                  <div className="absolute inset-0 bg-linear-to-t from-black/80 via-black/20 to-transparent p-3.5 flex flex-col justify-between">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[10px] uppercase font-bold text-[#D4AF37] bg-black/70 px-2.5 py-1 rounded-full border border-[#D4AF37]/40 backdrop-blur-xs">
+                        {slide.badge || 'Banner Photo'}
+                      </span>
                       <button
-                        onClick={() => handleDeleteCategory(cat.id)}
-                        className="p-1 text-red-600 hover:bg-red-50 rounded cursor-pointer"
+                        onClick={() => handleToggleSlideActive(slide)}
+                        className={`text-[10px] font-bold px-2.5 py-1 rounded-full cursor-pointer transition-colors ${
+                          slide.is_active !== false
+                            ? 'bg-emerald-500 text-white shadow-xs'
+                            : 'bg-gray-600 text-gray-200'
+                        }`}
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        {slide.is_active !== false ? 'Active Live' : 'Hidden'}
                       </button>
+                    </div>
+
+                    <div>
+                      <h4 className="font-serif text-base font-bold text-white drop-shadow-md">
+                        {slide.title}
+                      </h4>
+                      {slide.subtitle && (
+                        <p className="text-[11px] text-gray-200 line-clamp-1">
+                          {slide.subtitle}
+                        </p>
+                      )}
                     </div>
                   </div>
-                  <p className="text-xs text-gray-500 line-clamp-2">{cat.description}</p>
+                </div>
+
+                <div className="p-3.5 bg-[#FCF8F1] border-t border-[#D4AF37]/20 flex items-center justify-between text-xs">
+                  <span className="text-[11px] text-gray-600 font-medium">
+                    CTA: <strong className="text-[#8F171B]">{slide.cta_text || 'Explore Collection'}</strong>
+                  </span>
+
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => handleOpenEditSlide(slide)}
+                      className="p-1.5 text-blue-700 hover:bg-blue-100/80 rounded-lg cursor-pointer transition-colors"
+                      title="Edit Banner Photo"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteSlide(slide.id)}
+                      className="p-1.5 text-red-700 hover:bg-red-100/80 rounded-lg cursor-pointer transition-colors"
+                      title="Delete Banner Photo"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -2170,10 +2407,19 @@ export const AdminView: React.FC<AdminViewProps> = ({
       {/* PRODUCT MODAL */}
       {showProductModal && editingProduct && (
         <div className="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-          <div className="bg-[#FCF8F1] rounded-2xl border-2 border-[#D4AF37]/60 max-w-lg w-full p-4 sm:p-6 space-y-4 my-8">
+          <div className="bg-[#FCF8F1] rounded-2xl border-2 border-[#D4AF37]/60 max-w-lg w-full p-4 sm:p-6 space-y-4 my-8 shadow-2xl">
             <h3 className="font-serif text-xl sm:text-2xl font-bold text-[#8F171B]">
               {editingProduct.id ? 'Edit Product' : 'Add New Product'}
             </h3>
+
+            {productSaveMsg && (
+              <div className={`p-3 rounded-xl text-xs flex items-center gap-2 ${
+                productSaveMsg.type === 'error' ? 'bg-red-50 text-red-800 border border-red-200' : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+              }`}>
+                {productSaveMsg.type === 'error' ? <AlertCircle className="w-4 h-4 shrink-0 text-red-600" /> : <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />}
+                <span className="font-medium">{productSaveMsg.text}</span>
+              </div>
+            )}
 
             <form onSubmit={handleSaveProduct} className="space-y-3 text-xs">
               <div>
@@ -2181,9 +2427,10 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 <input
                   type="text"
                   required
+                  placeholder="e.g. Royal Antique Kasu Haram"
                   value={editingProduct.name || ''}
                   onChange={(e) => setEditingProduct({ ...editingProduct, name: e.target.value })}
-                  className="w-full bg-white border rounded px-3 py-2 font-semibold"
+                  className="w-full bg-white border border-[#D4AF37]/50 rounded-xl px-3 py-2 font-semibold"
                 />
               </div>
 
@@ -2193,7 +2440,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   <select
                     value={editingProduct.category_slug || ''}
                     onChange={(e) => setEditingProduct({ ...editingProduct, category_slug: e.target.value })}
-                    className="w-full bg-white border rounded px-3 py-2 font-semibold"
+                    className="w-full bg-white border border-[#D4AF37]/50 rounded-xl px-3 py-2 font-semibold"
                     required
                   >
                     <option value="">Select Category</option>
@@ -2208,7 +2455,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   <select
                     value={editingProduct.metal_type || '22k_gold'}
                     onChange={(e) => setEditingProduct({ ...editingProduct, metal_type: e.target.value as any })}
-                    className="w-full bg-white border rounded px-3 py-2 font-semibold"
+                    className="w-full bg-white border border-[#D4AF37]/50 rounded-xl px-3 py-2 font-semibold"
                   >
                     <option value="22k_gold">22K Gold</option>
                     <option value="24k_gold">24K Gold</option>
@@ -2226,7 +2473,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                     required
                     value={editingProduct.net_weight ?? ''}
                     onChange={(e) => setEditingProduct({ ...editingProduct, net_weight: Number(e.target.value) })}
-                    className="w-full bg-white border rounded px-3 py-2 font-mono"
+                    className="w-full bg-white border border-[#D4AF37]/50 rounded-xl px-3 py-2 font-mono"
                   />
                 </div>
 
@@ -2238,7 +2485,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                     required
                     value={editingProduct.wastage_percent ?? ''}
                     onChange={(e) => setEditingProduct({ ...editingProduct, wastage_percent: Number(e.target.value) })}
-                    className="w-full bg-white border rounded px-3 py-2 font-mono"
+                    className="w-full bg-white border border-[#D4AF37]/50 rounded-xl px-3 py-2 font-mono"
                   />
                 </div>
 
@@ -2248,7 +2495,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                     type="number"
                     value={editingProduct.making_charges ?? ''}
                     onChange={(e) => setEditingProduct({ ...editingProduct, making_charges: Number(e.target.value) })}
-                    className="w-full bg-white border rounded px-3 py-2 font-mono"
+                    className="w-full bg-white border border-[#D4AF37]/50 rounded-xl px-3 py-2 font-mono"
                   />
                 </div>
               </div>
@@ -2259,7 +2506,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   rows={2}
                   value={editingProduct.description || ''}
                   onChange={(e) => setEditingProduct({ ...editingProduct, description: e.target.value })}
-                  className="w-full bg-white border rounded px-3 py-2"
+                  className="w-full bg-white border border-[#D4AF37]/50 rounded-xl px-3 py-2"
                 />
               </div>
 
@@ -2270,7 +2517,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   placeholder="https://..."
                   value={editingProduct.image_url || ''}
                   onChange={(e) => setEditingProduct({ ...editingProduct, image_url: e.target.value })}
-                  className="w-full bg-white border rounded px-3 py-2 font-mono text-xs mb-1"
+                  className="w-full bg-white border border-[#D4AF37]/50 rounded-xl px-3 py-2 font-mono text-xs mb-1"
                 />
                 <div className="flex items-center gap-2 mt-1">
                   <input
@@ -2278,7 +2525,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                     accept="image/*"
                     onChange={(e) => handleFileUpload(e, 'product')}
                     disabled={imageUploadLoading}
-                    className="text-xs file:mr-2 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-[#8F171B] file:text-white hover:file:bg-[#580E11] file:cursor-pointer"
+                    className="text-xs file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-[#8F171B] file:text-white hover:file:bg-[#580E11] file:cursor-pointer"
                   />
                   {imageUploadLoading && (
                     <span className="text-[11px] text-[#8F171B] font-bold flex items-center gap-1 animate-pulse">
@@ -2296,16 +2543,21 @@ export const AdminView: React.FC<AdminViewProps> = ({
               <div className="flex gap-2 pt-3">
                 <button
                   type="button"
-                  onClick={() => setShowProductModal(false)}
-                  className="flex-1 bg-gray-200 text-gray-800 py-2 rounded font-bold cursor-pointer"
+                  onClick={() => {
+                    setShowProductModal(false);
+                    setProductSaveMsg(null);
+                  }}
+                  className="flex-1 bg-gray-200 text-gray-800 py-2.5 rounded-xl font-bold cursor-pointer hover:bg-gray-300"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 bg-[#8F171B] text-white py-2 rounded font-bold cursor-pointer"
+                  disabled={productSaving}
+                  className="flex-1 bg-[#8F171B] text-white hover:bg-[#580E11] py-2.5 rounded-xl font-bold cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2 shadow-md"
                 >
-                  Save Product
+                  {productSaving ? <RefreshCw className="w-4 h-4 animate-spin text-[#D4AF37]" /> : <Package className="w-4 h-4 text-[#D4AF37]" />}
+                  <span>{productSaving ? 'Saving Product...' : 'Save Product'}</span>
                 </button>
               </div>
             </form>
@@ -2316,10 +2568,19 @@ export const AdminView: React.FC<AdminViewProps> = ({
       {/* CATEGORY MODAL */}
       {showCategoryModal && editingCategory && (
         <div className="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-2 sm:p-4">
-          <div className="bg-[#FCF8F1] rounded-2xl border-2 border-[#D4AF37]/60 max-w-md w-full p-4 sm:p-6 space-y-4">
+          <div className="bg-[#FCF8F1] rounded-2xl border-2 border-[#D4AF37]/60 max-w-md w-full p-4 sm:p-6 space-y-4 shadow-2xl">
             <h3 className="font-serif text-xl sm:text-2xl font-bold text-[#8F171B]">
               {editingCategory.id ? 'Edit Category' : 'Add New Category'}
             </h3>
+
+            {categorySaveMsg && (
+              <div className={`p-3 rounded-xl text-xs flex items-center gap-2 ${
+                categorySaveMsg.type === 'error' ? 'bg-red-50 text-red-800 border border-red-200' : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+              }`}>
+                {categorySaveMsg.type === 'error' ? <AlertCircle className="w-4 h-4 shrink-0 text-red-600" /> : <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />}
+                <span className="font-medium">{categorySaveMsg.text}</span>
+              </div>
+            )}
 
             <form onSubmit={handleSaveCategory} className="space-y-3 text-xs">
               <div>
@@ -2327,20 +2588,21 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 <input
                   type="text"
                   required
+                  placeholder="e.g. Gold Earrings & Jhumkas"
                   value={editingCategory.name || ''}
                   onChange={(e) => setEditingCategory({ ...editingCategory, name: e.target.value })}
-                  className="w-full bg-white border rounded px-3 py-2 font-semibold"
+                  className="w-full bg-white border border-[#D4AF37]/50 rounded-xl px-3 py-2 font-semibold"
                 />
               </div>
 
               <div>
-                <label className="block font-bold uppercase mb-1">Slug *</label>
+                <label className="block font-bold uppercase mb-1">Slug</label>
                 <input
                   type="text"
-                  placeholder="e.g. gold-necklaces-malas"
+                  placeholder="e.g. gold-earrings-jhumkas (auto-generated if left blank)"
                   value={editingCategory.slug || ''}
                   onChange={(e) => setEditingCategory({ ...editingCategory, slug: e.target.value })}
-                  className="w-full bg-white border rounded px-3 py-2 font-mono text-xs"
+                  className="w-full bg-white border border-[#D4AF37]/50 rounded-xl px-3 py-2 font-mono text-xs"
                 />
               </div>
 
@@ -2348,20 +2610,21 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 <label className="block font-bold uppercase mb-1">Description</label>
                 <textarea
                   rows={2}
+                  placeholder="Short category description..."
                   value={editingCategory.description || ''}
                   onChange={(e) => setEditingCategory({ ...editingCategory, description: e.target.value })}
-                  className="w-full bg-white border rounded px-3 py-2"
+                  className="w-full bg-white border border-[#D4AF37]/50 rounded-xl px-3 py-2"
                 />
               </div>
 
               <div>
-                <label className="block font-bold uppercase mb-1">Banner Image URL or Upload</label>
+                <label className="block font-bold uppercase mb-1">Banner Preview Photo URL or Upload</label>
                 <input
                   type="text"
                   placeholder="https://..."
                   value={editingCategory.banner_image_url || ''}
                   onChange={(e) => setEditingCategory({ ...editingCategory, banner_image_url: e.target.value })}
-                  className="w-full bg-white border rounded px-3 py-2 font-mono text-xs mb-1"
+                  className="w-full bg-white border border-[#D4AF37]/50 rounded-xl px-3 py-2 font-mono text-xs mb-1"
                 />
                 <div className="flex items-center gap-2 mt-1">
                   <input
@@ -2369,7 +2632,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                     accept="image/*"
                     onChange={(e) => handleFileUpload(e, 'category')}
                     disabled={imageUploadLoading}
-                    className="text-xs file:mr-2 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-[#8F171B] file:text-white hover:file:bg-[#580E11] file:cursor-pointer"
+                    className="text-xs file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-[#8F171B] file:text-white hover:file:bg-[#580E11] file:cursor-pointer"
                   />
                   {imageUploadLoading && (
                     <span className="text-[11px] text-[#8F171B] font-bold flex items-center gap-1 animate-pulse">
@@ -2387,16 +2650,21 @@ export const AdminView: React.FC<AdminViewProps> = ({
               <div className="flex gap-2 pt-3">
                 <button
                   type="button"
-                  onClick={() => setShowCategoryModal(false)}
-                  className="flex-1 bg-gray-200 text-gray-800 py-2 rounded font-bold cursor-pointer"
+                  onClick={() => {
+                    setShowCategoryModal(false);
+                    setCategorySaveMsg(null);
+                  }}
+                  className="flex-1 bg-gray-200 text-gray-800 py-2.5 rounded-xl font-bold cursor-pointer hover:bg-gray-300"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 bg-[#8F171B] text-white py-2 rounded font-bold cursor-pointer"
+                  disabled={categorySaving}
+                  className="flex-1 bg-[#8F171B] text-white hover:bg-[#580E11] py-2.5 rounded-xl font-bold cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2 shadow-md"
                 >
-                  Save Category
+                  {categorySaving ? <RefreshCw className="w-4 h-4 animate-spin text-[#D4AF37]" /> : <Folders className="w-4 h-4 text-[#D4AF37]" />}
+                  <span>{categorySaving ? 'Saving Category...' : 'Save Category'}</span>
                 </button>
               </div>
             </form>
@@ -2610,7 +2878,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
               className="bg-[#8F171B] hover:bg-[#580E11] text-white px-5 py-2.5 rounded-xl font-bold text-xs transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer border border-[#D4AF37]/50 shrink-0"
             >
               <KeyRound className="w-4 h-4 text-[#D4AF37]" />
-              <span>Go to Password Reset Page &rarr;</span>
+              <span>Go to Password Reset Page →</span>
             </button>
           )}
         </div>
