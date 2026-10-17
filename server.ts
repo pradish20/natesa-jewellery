@@ -24,6 +24,7 @@ const SLIDES_FILE = path.resolve(__dirname, 'data', 'featured-slides.json');
 const STORE_CONTACT_FILE = path.resolve(__dirname, 'data', 'store-contact.json');
 const CATEGORIES_FILE = path.resolve(__dirname, 'data', 'categories.json');
 const PRODUCTS_FILE = path.resolve(__dirname, 'data', 'products.json');
+const ORDERS_FILE = path.resolve(__dirname, 'data', 'orders.json');
 
 function loadFeaturedSlides(): FeaturedSlide[] {
   try {
@@ -115,43 +116,66 @@ function saveProducts(products: Product[]) {
   }
 }
 
+function loadOrders(): Order[] {
+  try {
+    if (fs.existsSync(ORDERS_FILE)) {
+      const raw = fs.readFileSync(ORDERS_FILE, 'utf-8');
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch (err) {
+    console.error('Error reading orders file:', err);
+  }
+  return [
+    {
+      id: 'NJ-2026-8841',
+      customer_name: 'Ananya Sundaram',
+      email: 'ananya.s@example.com',
+      phone: '+91 98401 23456',
+      address: '42, Temple View Road, Near Tank Street',
+      city: 'Krishnagiri',
+      state: 'Tamil Nadu',
+      pincode: '635001',
+      items: [
+        {
+          product_id: 'prod-2',
+          product_name: 'Guttapusalu Antique Ruby Jhumkas',
+          net_weight: 18.2,
+          metal_type: '22k_gold',
+          price_per_unit: 141200,
+          quantity: 1,
+          image_url: 'https://images.unsplash.com/photo-1630019852942-f89202989a59?auto=format&fit=crop&w=800&q=80'
+        }
+      ],
+      subtotal: 137087,
+      gst_total: 4113,
+      grand_total: 141200,
+      payment_method: 'COD',
+      payment_status: 'Pending',
+      status: 'Processing',
+      tracking_number: 'DTDC-TN992831',
+      courier_name: 'DTDC Express Courier',
+      created_at: new Date(Date.now() - 86400000 * 2).toISOString()
+    }
+  ];
+}
+
+function saveOrders(orders: Order[]) {
+  try {
+    const dir = path.dirname(ORDERS_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(ORDERS_FILE, JSON.stringify(orders, null, 2));
+  } catch (err) {
+    console.error('Error saving orders file:', err);
+  }
+}
+
 let currentRates: RateSettings = { ...INITIAL_RATES };
 let currentProducts: Product[] = loadProducts();
 let currentCategories: Category[] = loadCategories();
 let currentSlides: FeaturedSlide[] = loadFeaturedSlides();
 let currentStoreContact: StoreContactSettings = loadStoreContact();
-let currentOrders: Order[] = [
-  {
-    id: 'NJ-2026-8841',
-    customer_name: 'Ananya Sundaram',
-    email: 'ananya.s@example.com',
-    phone: '+91 98401 23456',
-    address: '42, Temple View Road, Near Tank Street',
-    city: 'Krishnagiri',
-    state: 'Tamil Nadu',
-    pincode: '635001',
-    items: [
-      {
-        product_id: 'prod-2',
-        product_name: 'Guttapusalu Antique Ruby Jhumkas',
-        net_weight: 18.2,
-        metal_type: '22k_gold',
-        price_per_unit: 141200,
-        quantity: 1,
-        image_url: 'https://images.unsplash.com/photo-1630019852942-f89202989a59?auto=format&fit=crop&w=800&q=80'
-      }
-    ],
-    subtotal: 137087,
-    gst_total: 4113,
-    grand_total: 141200,
-    payment_method: 'COD',
-    payment_status: 'Pending',
-    status: 'Processing',
-    tracking_number: 'DTDC-TN992831',
-    courier_name: 'DTDC Express Courier',
-    created_at: new Date(Date.now() - 86400000 * 2).toISOString()
-  }
-];
+let currentOrders: Order[] = loadOrders();
 let currentEnquiries: Enquiry[] = [];
 
 // Default In-Memory Admin
@@ -744,7 +768,34 @@ async function seedInitialDataToSupabase(): Promise<{ success: boolean; details:
       slideErr = error;
     }
 
-    const errors = [adminErr, catErr, prodErr, rateErr, shopErr, slideErr].filter(Boolean);
+    // 7. Seed initial customer orders
+    let orderErr = null;
+    if (currentOrders.length > 0) {
+      const dbOrders = currentOrders.map(o => ({
+        id: o.id,
+        customer_name: o.customer_name,
+        email: o.email || '',
+        phone: o.phone,
+        address: o.address,
+        city: o.city,
+        state: o.state,
+        pincode: o.pincode,
+        items: Array.isArray(o.items) ? o.items : [],
+        subtotal: Number(o.subtotal) || 0,
+        gst_total: Number(o.gst_total) || 0,
+        grand_total: Number(o.grand_total) || 0,
+        payment_method: o.payment_method || 'COD',
+        payment_status: o.payment_status || 'Pending',
+        status: o.status || 'Pending',
+        tracking_number: o.tracking_number || null,
+        courier_name: o.courier_name || null,
+        created_at: o.created_at
+      }));
+      const { error } = await supabase.from('orders').upsert(dbOrders, { onConflict: 'id' });
+      orderErr = error;
+    }
+
+    const errors = [adminErr, catErr, prodErr, rateErr, shopErr, slideErr, orderErr].filter(Boolean);
     if (errors.length > 0) {
       console.warn('Supabase seed encountered notices/errors:', errors);
       const isMissingTable = errors.some(
@@ -757,7 +808,7 @@ async function seedInitialDataToSupabase(): Promise<{ success: boolean; details:
       );
 
       const errorMsg = isMissingTable
-        ? 'Tables (categories, products, rates, shop_details, admin_users) do not exist in your Supabase database yet! Please copy the SQL Schema from the Supabase tab and run it in your Supabase SQL Editor.'
+        ? 'Tables (categories, products, rates, shop_details, orders, admin_users) do not exist in your Supabase database yet! Please copy the SQL Schema from the Supabase tab and run it in your Supabase SQL Editor.'
         : `Supabase sync error: ${errors.map(e => e?.message).join(', ')}`;
 
       return {
@@ -769,6 +820,7 @@ async function seedInitialDataToSupabase(): Promise<{ success: boolean; details:
           rates_seeded: !rateErr,
           shop_details_seeded: !shopErr,
           slides_count: slideErr ? 0 : currentSlides.length,
+          orders_count: orderErr ? 0 : currentOrders.length,
           errors: errors.map(e => e?.message)
         },
         error: errorMsg
@@ -2261,36 +2313,48 @@ app.post('/api/orders', async (req: Request, res: Response) => {
     created_at: new Date().toISOString()
   };
 
+  let savedInSupabase = false;
+
   if (supabase) {
     try {
-      const { data, error } = await supabase
-        .from('orders')
-        .insert([newOrder])
-        .select()
-        .maybeSingle();
+      const dbOrderRecord = {
+        id: newOrder.id,
+        customer_name: newOrder.customer_name || 'Customer',
+        email: newOrder.email || '',
+        phone: newOrder.phone || '',
+        address: newOrder.address || '',
+        city: newOrder.city || '',
+        state: newOrder.state || 'Tamil Nadu',
+        pincode: newOrder.pincode || '',
+        items: Array.isArray(newOrder.items) ? newOrder.items : [],
+        subtotal: Number(newOrder.subtotal) || 0,
+        gst_total: Number(newOrder.gst_total) || 0,
+        grand_total: Number(newOrder.grand_total) || 0,
+        payment_method: newOrder.payment_method || 'COD',
+        payment_status: newOrder.payment_status || 'Pending',
+        status: newOrder.status || 'Pending',
+        tracking_number: newOrder.tracking_number || null,
+        courier_name: newOrder.courier_name || null,
+        created_at: newOrder.created_at
+      };
 
-      if (error) {
-        console.error('Supabase order insert error:', error.message || error);
-      } else if (data) {
-        const created: Order = {
-          ...data,
-          grand_total: Number(data.grand_total) || newOrder.grand_total,
-          subtotal: Number(data.subtotal) || newOrder.subtotal,
-          gst_total: Number(data.gst_total) || newOrder.gst_total,
-          items: typeof data.items === 'string'
-            ? (() => { try { return JSON.parse(data.items); } catch { return newOrder.items; } })()
-            : (Array.isArray(data.items) ? data.items : newOrder.items)
-        };
-        currentOrders.unshift(created);
-        return res.status(201).json(created);
+      const { error } = await supabase
+        .from('orders')
+        .insert([dbOrderRecord]);
+
+      if (!error) {
+        savedInSupabase = true;
+      } else {
+        console.warn('Supabase order insert warning:', error.message);
       }
-    } catch (e) {
-      console.error('Supabase order insert exception:', e);
+    } catch (e: any) {
+      console.error('Supabase order insert exception:', e?.message || e);
     }
   }
 
-  currentOrders.unshift(newOrder);
-  res.status(201).json(newOrder);
+  currentOrders.unshift({ ...newOrder, saved_in_supabase: savedInSupabase } as any);
+  saveOrders(currentOrders);
+  res.status(201).json({ ...newOrder, saved_in_supabase: savedInSupabase });
 });
 
 app.put('/api/orders/:id/status', async (req: Request, res: Response) => {
@@ -2307,6 +2371,7 @@ app.put('/api/orders/:id/status', async (req: Request, res: Response) => {
     tracking_number: tracking_number !== undefined ? tracking_number : currentOrders[index].tracking_number,
     courier_name: courier_name !== undefined ? courier_name : currentOrders[index].courier_name
   };
+  saveOrders(currentOrders);
 
   if (supabase) {
     try {

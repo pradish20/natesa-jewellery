@@ -10,7 +10,7 @@ import {
   FeaturedSlide, Order, OrderStatus, Product, RateSettings, StoreContactSettings, SupabaseLiveStatus
 } from '../types';
 import { api } from '../services/api';
-import { formatINR } from '../utils/pricing';
+import { formatINR, getProductPrice } from '../utils/pricing';
 import { INITIAL_FEATURED_SLIDES, INITIAL_STORE_CONTACT } from '../data/initialData';
 
 interface AdminViewProps {
@@ -275,6 +275,27 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [refreshingOrders, setRefreshingOrders] = useState<boolean>(false);
   const [trackingDrafts, setTrackingDrafts] = useState<Record<string, string>>({});
   const [savingTrackingId, setSavingTrackingId] = useState<string | null>(null);
+
+  // Manual Order Creation Modal State
+  const [showCreateOrderModal, setShowCreateOrderModal] = useState<boolean>(false);
+  const [orderSaving, setOrderSaving] = useState<boolean>(false);
+  const [orderSaveMsg, setOrderSaveMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [orderSearchQuery, setOrderSearchQuery] = useState<string>('');
+  const [orderStatusFilter, setOrderStatusFilter] = useState<string>('all');
+
+  const [newOrderForm, setNewOrderForm] = useState({
+    customer_name: '',
+    phone: '',
+    email: '',
+    address: '',
+    city: 'Krishnagiri',
+    state: 'Tamil Nadu',
+    pincode: '635001',
+    product_id: '',
+    quantity: 1,
+    payment_method: 'COD' as 'COD' | 'Razorpay',
+    payment_status: 'Pending' as 'Pending' | 'Paid'
+  });
 
   // Auto-sync orders & store updates from Supabase while logged into admin
   useEffect(() => {
@@ -1019,6 +1040,86 @@ export const AdminView: React.FC<AdminViewProps> = ({
     }
   };
 
+  // Create Manual Order in Supabase
+  const handleCreateOrder = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newOrderForm.customer_name || !newOrderForm.phone || !newOrderForm.address) {
+      setOrderSaveMsg({ type: 'error', text: 'Customer name, phone number, and delivery address are required.' });
+      return;
+    }
+
+    const selectedProd = products.find(p => p.id === newOrderForm.product_id) || products[0];
+    if (!selectedProd) {
+      setOrderSaveMsg({ type: 'error', text: 'Please select at least one product for the order.' });
+      return;
+    }
+
+    const pricePerUnit = getProductPrice(selectedProd, rates);
+    const subtotal = pricePerUnit * newOrderForm.quantity;
+    const gstTotal = Math.round(subtotal * 0.03);
+    const grandTotal = subtotal + gstTotal;
+
+    setOrderSaving(true);
+    setOrderSaveMsg(null);
+
+    try {
+      const orderPayload: Partial<Order> = {
+        customer_name: newOrderForm.customer_name.trim(),
+        phone: newOrderForm.phone.trim(),
+        email: newOrderForm.email.trim(),
+        address: newOrderForm.address.trim(),
+        city: newOrderForm.city.trim() || 'Krishnagiri',
+        state: newOrderForm.state.trim() || 'Tamil Nadu',
+        pincode: newOrderForm.pincode.trim() || '635001',
+        payment_method: newOrderForm.payment_method,
+        payment_status: newOrderForm.payment_status,
+        subtotal,
+        gst_total: gstTotal,
+        grand_total: grandTotal,
+        items: [
+          {
+            product_id: selectedProd.id,
+            product_name: selectedProd.name,
+            net_weight: selectedProd.net_weight,
+            metal_type: selectedProd.metal_type,
+            price_per_unit: pricePerUnit,
+            quantity: newOrderForm.quantity,
+            image_url: selectedProd.image_url
+          }
+        ]
+      };
+
+      const created = await api.createOrder(orderPayload);
+      setOrderSaveMsg({
+        type: 'success',
+        text: `Order ${created.id} created and saved directly to Supabase!`
+      });
+
+      await onRefreshData();
+      setTimeout(() => {
+        setShowCreateOrderModal(false);
+        setOrderSaveMsg(null);
+        setNewOrderForm({
+          customer_name: '',
+          phone: '',
+          email: '',
+          address: '',
+          city: 'Krishnagiri',
+          state: 'Tamil Nadu',
+          pincode: '635001',
+          product_id: '',
+          quantity: 1,
+          payment_method: 'COD',
+          payment_status: 'Pending'
+        });
+      }, 1000);
+    } catch (err: any) {
+      setOrderSaveMsg({ type: 'error', text: err.message || 'Failed to save order to Supabase.' });
+    } finally {
+      setOrderSaving(false);
+    }
+  };
+
   // ---------------- LOGIN SCREEN (MINIMALIST & CLEAN) ----------------
   if (!isAuthenticated) {
     return (
@@ -1202,6 +1303,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
       <div className="bg-white p-2 rounded-xl border border-[#D4AF37]/40 shadow-2xs flex items-center gap-2 overflow-x-auto text-xs font-semibold w-full max-w-full">
         {[
           { id: 'overview', label: 'Overview Metrics', icon: LayoutDashboard },
+          { id: 'orders', label: 'Orders Manager', icon: ShoppingBag },
           { id: 'products', label: 'Products Manager', icon: Package },
           { id: 'categories', label: 'Categories Manager', icon: Folders },
           { id: 'slides', label: 'Banner Preview Photos', icon: ImageIcon },
@@ -1238,32 +1340,67 @@ export const AdminView: React.FC<AdminViewProps> = ({
       {/* TAB 1: OVERVIEW METRICS */}
       {activeTab === 'overview' && (
         <div className="space-y-6 animate-in fade-in duration-200 w-full">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 w-full">
-            <div className="bg-white p-4 sm:p-6 rounded-xl border border-[#D4AF37]/30 shadow-xs space-y-1 w-full">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6 w-full">
+            <div className="bg-white p-4 sm:p-5 rounded-xl border border-[#D4AF37]/30 shadow-xs space-y-1 w-full">
               <span className="text-xs font-bold text-[#8F171B] uppercase">Total Products</span>
               <div className="text-2xl sm:text-3xl font-bold font-mono text-[#292321]">{products.length}</div>
               <span className="text-[11px] text-gray-500">
                 {supabaseStatus?.counts.products !== null && supabaseStatus?.counts.products !== undefined
-                  ? `${supabaseStatus.counts.products} stored in Supabase`
+                  ? `${supabaseStatus.counts.products} in Supabase`
                   : 'Active in catalog'}
               </span>
             </div>
 
-            <div className="bg-white p-4 sm:p-6 rounded-xl border border-[#D4AF37]/30 shadow-xs space-y-1 w-full">
+            <div className="bg-white p-4 sm:p-5 rounded-xl border border-[#D4AF37]/30 shadow-xs space-y-1 w-full">
               <span className="text-xs font-bold text-[#8F171B] uppercase">Active Categories</span>
               <div className="text-2xl sm:text-3xl font-bold font-mono text-[#292321]">{categories.length}</div>
               <span className="text-[11px] text-gray-500">
                 {supabaseStatus?.counts.categories !== null && supabaseStatus?.counts.categories !== undefined
-                  ? `${supabaseStatus.counts.categories} stored in Supabase`
+                  ? `${supabaseStatus.counts.categories} in Supabase`
                   : 'Gold, Silver & Antiques'}
               </span>
             </div>
 
-            <div className="bg-white p-4 sm:p-6 rounded-xl border border-[#D4AF37]/30 shadow-xs space-y-1 w-full">
+            <div className="bg-white p-4 sm:p-5 rounded-xl border border-[#D4AF37]/30 shadow-xs space-y-1 w-full">
+              <span className="text-xs font-bold text-[#8F171B] uppercase">Total Orders</span>
+              <div className="text-2xl sm:text-3xl font-bold font-mono text-[#8F171B]">{orders.length}</div>
+              <span className="text-[11px] text-gray-500">
+                {supabaseStatus?.counts.orders !== null && supabaseStatus?.counts.orders !== undefined
+                  ? `${supabaseStatus.counts.orders} in Supabase orders`
+                  : 'Live orders synced'}
+              </span>
+            </div>
+
+            <div className="bg-white p-4 sm:p-5 rounded-xl border border-[#D4AF37]/30 shadow-xs space-y-1 w-full">
               <span className="text-xs font-bold text-[#8F171B] uppercase">Live 22K Gold Rate</span>
               <div className="text-2xl sm:text-3xl font-bold font-mono text-[#8F171B]">{formatINR(rates.gold_22k_rate)}/g</div>
-              <span className="text-[11px] text-gray-500">Storewide calculation benchmark</span>
+              <span className="text-[11px] text-gray-500">Storewide benchmark</span>
             </div>
+          </div>
+
+          {/* Quick Action Bar for Customer Orders */}
+          <div className="bg-gradient-to-r from-[#8F171B]/5 to-[#D4AF37]/10 p-5 rounded-2xl border-2 border-[#D4AF37]/50 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-[#8F171B] text-[#D4AF37] rounded-xl shadow-xs shrink-0">
+                <ShoppingBag className="w-6 h-6" />
+              </div>
+              <div>
+                <h4 className="font-serif text-base sm:text-lg font-bold text-[#292321]">
+                  Customer Orders Manager ({orders.length} Orders)
+                </h4>
+                <p className="text-xs text-gray-600">
+                  Track courier status, view customer addresses, update order progress, and manually create new orders in Supabase.
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setActiveTab('orders' as any)}
+              className="bg-[#8F171B] hover:bg-[#580E11] text-white px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 shadow-xs cursor-pointer transition-colors border border-[#D4AF37]/40 shrink-0"
+            >
+              <ShoppingBag className="w-4 h-4 text-[#D4AF37]" />
+              <span>Manage Orders in Supabase →</span>
+            </button>
           </div>
 
           {/* Quick Action Bar for Banner Preview Photos */}
@@ -1326,7 +1463,260 @@ export const AdminView: React.FC<AdminViewProps> = ({
         </div>
       )}
 
-      {/* TAB 2: PRODUCTS MANAGER */}
+      {/* TAB 2: ORDERS MANAGER (SUPABASE CONNECTED) */}
+      {activeTab === 'orders' && (
+        <div className="space-y-6 animate-in fade-in duration-200 w-full">
+          
+          {/* Header Card */}
+          <div className="bg-white p-5 rounded-2xl border-2 border-[#D4AF37]/50 shadow-xs flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-[#8F171B] text-[#D4AF37] flex items-center justify-center font-bold shrink-0 shadow-xs">
+                <ShoppingBag className="w-6 h-6" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="font-serif text-lg sm:text-xl font-bold text-[#292321]">
+                    Customer Orders Manager
+                  </h3>
+                  <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 border ${
+                    supabaseStatus?.connected
+                      ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                      : 'bg-amber-100 text-amber-800 border-amber-300'
+                  }`}>
+                    <span className={`w-2 h-2 rounded-full ${supabaseStatus?.connected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`}></span>
+                    {supabaseStatus?.connected ? 'Live Synced to Supabase (orders table)' : 'Local Cache / Standby'}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  View, filter, track shipping, update status, and manually create new customer orders directly in Supabase.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={handleManualRefreshOrders}
+                disabled={refreshingOrders}
+                className="bg-gray-100 hover:bg-gray-200 text-gray-800 px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
+                title="Fetch latest orders directly from Supabase"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${refreshingOrders ? 'animate-spin' : ''}`} />
+                <span>{refreshingOrders ? 'Fetching...' : 'Refresh Orders'}</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setNewOrderForm({
+                    customer_name: '',
+                    phone: '',
+                    email: '',
+                    address: '',
+                    city: 'Krishnagiri',
+                    state: 'Tamil Nadu',
+                    pincode: '635001',
+                    product_id: products[0]?.id || '',
+                    quantity: 1,
+                    payment_method: 'COD',
+                    payment_status: 'Pending'
+                  });
+                  setOrderSaveMsg(null);
+                  setShowCreateOrderModal(true);
+                }}
+                className="bg-[#8F171B] hover:bg-[#580E11] text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer border border-[#D4AF37]/40 transition-colors"
+              >
+                <Plus className="w-4 h-4 text-[#D4AF37]" />
+                <span>Create Order in Supabase</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Search & Status Filter Bar */}
+          <div className="bg-white p-4 rounded-xl border border-[#D4AF37]/40 shadow-2xs space-y-3">
+            <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
+              <input
+                type="text"
+                placeholder="Search by Order ID (NJ-2026-XXXX), Name, or Phone..."
+                value={orderSearchQuery}
+                onChange={(e) => setOrderSearchQuery(e.target.value)}
+                className="w-full sm:w-80 bg-[#FCF8F1] border border-[#D4AF37]/50 rounded-xl px-3.5 py-2 text-xs font-semibold text-[#292321]"
+              />
+
+              <div className="flex items-center gap-1 overflow-x-auto w-full sm:w-auto text-xs font-semibold pb-1 sm:pb-0">
+                {['all', 'Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled'].map((st) => (
+                  <button
+                    key={st}
+                    onClick={() => setOrderStatusFilter(st)}
+                    className={`px-3 py-1.5 rounded-lg whitespace-nowrap cursor-pointer transition-colors ${
+                      orderStatusFilter === st
+                        ? 'bg-[#8F171B] text-white shadow-xs font-bold'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    {st === 'all' ? 'All Orders' : st}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Orders Cards List */}
+          {(() => {
+            const filteredOrders = orders.filter((ord) => {
+              if (orderStatusFilter !== 'all' && ord.status !== orderStatusFilter) return false;
+              if (orderSearchQuery) {
+                const q = orderSearchQuery.toLowerCase().trim();
+                const matchId = ord.id.toLowerCase().includes(q);
+                const matchName = ord.customer_name.toLowerCase().includes(q);
+                const matchPhone = ord.phone.includes(q);
+                if (!matchId && !matchName && !matchPhone) return false;
+              }
+              return true;
+            });
+
+            if (filteredOrders.length === 0) {
+              return (
+                <div className="bg-white p-12 text-center rounded-2xl border border-[#D4AF37]/30 space-y-3">
+                  <ShoppingBag className="w-10 h-10 text-[#D4AF37] mx-auto" />
+                  <h4 className="font-serif text-lg font-bold text-[#292321]">No orders found</h4>
+                  <p className="text-xs text-gray-500 max-w-sm mx-auto">
+                    No orders match your search or filter criteria. Click <strong>"Create Order in Supabase"</strong> above to manually add an order!
+                  </p>
+                </div>
+              );
+            }
+
+            return (
+              <div className="space-y-4">
+                {filteredOrders.map((ord) => {
+                  const isExpanded = Boolean(expandedOrders[ord.id]);
+                  return (
+                    <div key={ord.id} className="bg-white rounded-2xl border-2 border-[#D4AF37]/40 shadow-xs overflow-hidden transition-all">
+                      <div className="p-4 sm:p-5 bg-[#FCF8F1] border-b border-[#D4AF37]/30 flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className="bg-[#8F171B] text-[#D4AF37] font-mono font-bold text-xs px-3 py-1.5 rounded-lg shadow-2xs">
+                            {ord.id}
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-sm text-[#292321]">{ord.customer_name}</h4>
+                            <div className="flex items-center gap-2 text-[11px] text-gray-500 font-mono">
+                              <span>📞 {ord.phone}</span>
+                              {ord.email && <span>• ✉️ {ord.email}</span>}
+                              <span>• 📅 {new Date(ord.created_at).toLocaleDateString()}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto justify-between md:justify-end">
+                          <div className="text-right">
+                            <span className="text-[10px] text-gray-500 uppercase font-bold block">Grand Total</span>
+                            <span className="font-mono font-bold text-base text-[#8F171B]">{formatINR(ord.grand_total)}</span>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <select
+                              value={ord.status}
+                              onChange={(e) => handleUpdateOrderStatus(ord.id, e.target.value as OrderStatus, ord.tracking_number)}
+                              className="bg-white border border-[#D4AF37]/60 rounded-xl px-2.5 py-1.5 text-xs font-bold text-[#8F171B] cursor-pointer"
+                            >
+                              <option value="Pending">Pending</option>
+                              <option value="Processing">Processing</option>
+                              <option value="Shipped">Shipped</option>
+                              <option value="Delivered">Delivered</option>
+                              <option value="Cancelled">Cancelled</option>
+                            </select>
+
+                            <button
+                              onClick={() => toggleOrderExpand(ord.id)}
+                              className="bg-white hover:bg-gray-100 border border-gray-200 text-gray-700 p-1.5 rounded-xl cursor-pointer"
+                              title="Toggle Details"
+                            >
+                              {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Expanded Order Details */}
+                      {isExpanded && (
+                        <div className="p-4 sm:p-5 space-y-4 text-xs animate-in fade-in duration-150">
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-[#FCF8F1]/60 p-3.5 rounded-xl border border-[#D4AF37]/20">
+                            <div>
+                              <span className="font-bold text-[#8F171B] uppercase text-[10px] block mb-1">Shipping Address</span>
+                              <p className="text-gray-700 font-medium leading-relaxed">
+                                {ord.address}, {ord.city}, {ord.state} - {ord.pincode}
+                              </p>
+                            </div>
+
+                            <div>
+                              <span className="font-bold text-[#8F171B] uppercase text-[10px] block mb-1">Payment Method & Status</span>
+                              <div className="space-y-0.5">
+                                <p className="font-bold text-gray-800">Method: {ord.payment_method}</p>
+                                <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded ${
+                                  ord.payment_status === 'Paid' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                                }`}>
+                                  Payment: {ord.payment_status}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Courier Tracking Inputs */}
+                            <div className="space-y-2">
+                              <span className="font-bold text-[#8F171B] uppercase text-[10px] block">Courier & Tracking</span>
+                              <div className="flex gap-2">
+                                <input
+                                  type="text"
+                                  placeholder="DTDC-TN992831..."
+                                  defaultValue={ord.tracking_number || ''}
+                                  onChange={(e) => setTrackingDrafts(prev => ({ ...prev, [ord.id]: e.target.value }))}
+                                  className="w-full bg-white border border-[#D4AF37]/50 rounded-lg px-2.5 py-1 text-xs font-mono"
+                                />
+                                <button
+                                  onClick={() => handleSaveTracking(ord.id, ord.status)}
+                                  disabled={savingTrackingId === ord.id}
+                                  className="bg-[#8F171B] hover:bg-[#580E11] text-white px-3 py-1 rounded-lg text-xs font-bold cursor-pointer disabled:opacity-50 shrink-0"
+                                >
+                                  {savingTrackingId === ord.id ? 'Saving...' : 'Save to Supabase'}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Order Items Table */}
+                          <div className="space-y-2">
+                            <span className="font-bold text-[#292321] uppercase text-[11px] block">Ordered Items ({ord.items?.length || 0})</span>
+                            <div className="space-y-2">
+                              {ord.items && ord.items.map((it, idx) => (
+                                <div key={idx} className="flex items-center justify-between gap-3 bg-white p-2.5 rounded-xl border border-gray-100">
+                                  <div className="flex items-center gap-3">
+                                    {it.image_url ? (
+                                      <img src={it.image_url} alt={it.product_name} className="w-12 h-12 object-cover rounded-lg border border-[#D4AF37]/30" />
+                                    ) : (
+                                      <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center text-gray-400 font-bold">NJ</div>
+                                    )}
+                                    <div>
+                                      <h5 className="font-bold text-xs text-[#292321]">{it.product_name}</h5>
+                                      <span className="text-[10px] text-gray-500">
+                                        Weight: {it.net_weight}g • Metal: {it.metal_type} • Qty: {it.quantity}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <span className="font-mono font-bold text-xs text-[#8F171B]">{formatINR(it.price_per_unit * it.quantity)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+        </div>
+      )}
+
+      {/* TAB 3: PRODUCTS MANAGER */}
       {activeTab === 'products' && (
         <div className="space-y-6 animate-in fade-in duration-200 w-full">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white p-4 rounded-xl border border-[#D4AF37]/40">
