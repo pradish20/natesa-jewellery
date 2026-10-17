@@ -671,7 +671,30 @@ async function seedInitialDataToSupabase(): Promise<{ success: boolean; details:
       }
     ], { onConflict: 'id' });
 
-    const errors = [adminErr, catErr, prodErr, rateErr].filter(Boolean);
+    // 5. Seed shop_details
+    const { error: shopErr } = await supabase.from('shop_details').upsert([
+      {
+        id: 'store_contact',
+        phone_primary: currentStoreContact.phone_primary,
+        phone_secondary: currentStoreContact.phone_secondary,
+        phone_whatsapp: currentStoreContact.phone_whatsapp,
+        email: currentStoreContact.email,
+        main_branch_address: currentStoreContact.main_branch_address,
+        second_branch_address: currentStoreContact.second_branch_address,
+        opening_hours: currentStoreContact.opening_hours,
+        announcement_text: currentStoreContact.announcement_text,
+        updated_at: new Date().toISOString()
+      }
+    ], { onConflict: 'id' });
+
+    // 6. Seed featured_slides
+    let slideErr = null;
+    if (currentSlides.length > 0) {
+      const { error } = await supabase.from('featured_slides').upsert(currentSlides, { onConflict: 'id' });
+      slideErr = error;
+    }
+
+    const errors = [adminErr, catErr, prodErr, rateErr, shopErr, slideErr].filter(Boolean);
     if (errors.length > 0) {
       console.warn('Supabase seed encountered notices/errors:', errors);
       const isMissingTable = errors.some(
@@ -684,7 +707,7 @@ async function seedInitialDataToSupabase(): Promise<{ success: boolean; details:
       );
 
       const errorMsg = isMissingTable
-        ? 'Tables (categories, products, rates, admin_users) do not exist in your Supabase database yet! Please copy the SQL Schema from the Supabase tab and run it in your Supabase SQL Editor.'
+        ? 'Tables (categories, products, rates, shop_details, admin_users) do not exist in your Supabase database yet! Please copy the SQL Schema from the Supabase tab and run it in your Supabase SQL Editor.'
         : `Supabase sync error: ${errors.map(e => e?.message).join(', ')}`;
 
       return {
@@ -694,6 +717,8 @@ async function seedInitialDataToSupabase(): Promise<{ success: boolean; details:
           categories_count: catErr ? 0 : INITIAL_CATEGORIES.length,
           products_count: prodErr ? 0 : INITIAL_PRODUCTS.length,
           rates_seeded: !rateErr,
+          shop_details_seeded: !shopErr,
+          slides_count: slideErr ? 0 : currentSlides.length,
           errors: errors.map(e => e?.message)
         },
         error: errorMsg
@@ -707,6 +732,8 @@ async function seedInitialDataToSupabase(): Promise<{ success: boolean; details:
         categories_count: INITIAL_CATEGORIES.length,
         products_count: INITIAL_PRODUCTS.length,
         rates_seeded: true,
+        shop_details_seeded: true,
+        slides_count: currentSlides.length,
         errors: []
       }
     };
