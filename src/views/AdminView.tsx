@@ -820,8 +820,10 @@ export const AdminView: React.FC<AdminViewProps> = ({
           category_slug: catSlug
         });
         setProductSaveMsg({
-          type: 'success',
-          text: `Product updated successfully ${res.saved_in_supabase ? 'in Supabase' : 'locally'}!`
+          type: res.saved_in_supabase ? 'success' : 'error',
+          text: res.saved_in_supabase
+            ? 'Product updated and saved directly in Supabase!'
+            : `Saved locally. (Supabase notice: ${res.supabase_error || 'Supabase URL/Key not set. Connect in Database Config tab.'})`
         });
       } else {
         const res = await api.createProduct({
@@ -837,8 +839,10 @@ export const AdminView: React.FC<AdminViewProps> = ({
           in_stock: editingProduct.in_stock ?? true
         });
         setProductSaveMsg({
-          type: 'success',
-          text: `Product created successfully ${res.saved_in_supabase ? 'in Supabase' : 'locally'}!`
+          type: res.saved_in_supabase ? 'success' : 'error',
+          text: res.saved_in_supabase
+            ? 'Product created and saved directly in Supabase!'
+            : `Saved locally. (Supabase notice: ${res.supabase_error || 'Supabase URL/Key not set. Connect in Database Config tab.'})`
         });
       }
 
@@ -847,7 +851,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
         setShowProductModal(false);
         setEditingProduct(null);
         setProductSaveMsg(null);
-      }, 700);
+      }, 1200);
     } catch (err: any) {
       setProductSaveMsg({ type: 'error', text: err.message || 'Failed to save product.' });
     } finally {
@@ -882,8 +886,10 @@ export const AdminView: React.FC<AdminViewProps> = ({
       if (editingCategory.id) {
         const res = await api.updateCategory(editingCategory.id, editingCategory);
         setCategorySaveMsg({
-          type: 'success',
-          text: `Category updated successfully ${res.saved_in_supabase ? 'in Supabase' : 'locally'}!`
+          type: res.saved_in_supabase ? 'success' : 'error',
+          text: res.saved_in_supabase
+            ? 'Category updated and saved directly in Supabase!'
+            : `Saved locally. (Supabase notice: ${res.supabase_error || 'Supabase URL/Key not set. Connect in Database Config tab.'})`
         });
       } else {
         const res = await api.createCategory({
@@ -891,8 +897,10 @@ export const AdminView: React.FC<AdminViewProps> = ({
           banner_image_url: editingCategory.banner_image_url || 'https://images.unsplash.com/photo-1601121141461-9d6647bca1ed?auto=format&fit=crop&w=800&q=80'
         });
         setCategorySaveMsg({
-          type: 'success',
-          text: `Category created successfully ${res.saved_in_supabase ? 'in Supabase' : 'locally'}!`
+          type: res.saved_in_supabase ? 'success' : 'error',
+          text: res.saved_in_supabase
+            ? 'Category created and saved directly in Supabase!'
+            : `Saved locally. (Supabase notice: ${res.supabase_error || 'Supabase URL/Key not set. Connect in Database Config tab.'})`
         });
       }
 
@@ -901,7 +909,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
         setShowCategoryModal(false);
         setEditingCategory(null);
         setCategorySaveMsg(null);
-      }, 700);
+      }, 1200);
     } catch (err: any) {
       setCategorySaveMsg({ type: 'error', text: err.message || 'Failed to save category.' });
     } finally {

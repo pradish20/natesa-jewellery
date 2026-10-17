@@ -987,18 +987,24 @@ app.post('/api/supabase/config', async (req: Request, res: Response) => {
 
   try {
     const testClient = createClient(cleanUrl, cleanKey, { auth: { persistSession: false } });
-    // Test a basic call
-    await testClient.from('admin_users').select('id', { count: 'exact', head: true });
 
+    // Always assign global client and save credentials file
     supabaseUrl = cleanUrl;
     supabaseKey = cleanKey;
     supabase = testClient;
-
     saveSupabaseConfig(cleanUrl, cleanKey);
+
+    // Test a basic call to check if tables are created yet
+    const { error: testErr } = await testClient.from('categories').select('id', { count: 'exact', head: true });
+
+    let note = '';
+    if (testErr && (testErr.code === '42P01' || testErr.message?.toLowerCase().includes('does not exist'))) {
+      note = ' Credentials saved! Note: Supabase tables are not created yet. Please click "Copy SQL Script" and run it in your Supabase SQL Editor.';
+    }
 
     res.json({
       success: true,
-      message: 'Supabase successfully connected and configured!',
+      message: `Supabase successfully connected and saved!${note}`,
       url: cleanUrl
     });
   } catch (err: any) {
