@@ -44,10 +44,16 @@ export const CategoryCatalogView: React.FC<CategoryCatalogViewProps> = ({
     }
   }, [selectedCategorySlug, isSilverOnly]);
 
+  // Filter categories for the current view (Silver vs Gold)
+  const displayCategories = isSilverOnly
+    ? categories.filter(c => c.is_silver_only || products.some(p => p.category_slug === c.slug && p.metal_type === '925_silver'))
+    : categories.filter(c => !c.is_silver_only);
+
   // Filter items
   const filteredProducts = products.filter((p) => {
     if (isSilverOnly && p.metal_type !== '925_silver') return false;
-    if (!isSilverOnly && activeCategory !== 'all' && p.category_slug !== activeCategory) return false;
+    if (!isSilverOnly && p.metal_type === '925_silver') return false;
+    if (activeCategory !== 'all' && p.category_slug !== activeCategory) return false;
     if (searchQuery && !p.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
     return true;
   });
@@ -87,33 +93,31 @@ export const CategoryCatalogView: React.FC<CategoryCatalogViewProps> = ({
       <div className="bg-white p-4 sm:p-5 rounded-xl border border-[#D4AF37]/30 shadow-2xs space-y-4">
         
         {/* Category Tabs */}
-        {!isSilverOnly && (
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs sm:text-sm">
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs sm:text-sm">
+          <button
+            onClick={() => setActiveCategory('all')}
+            className={`px-4 py-2 rounded-lg font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+              activeCategory === 'all'
+                ? 'bg-[#8F171B] text-white shadow-xs'
+                : 'bg-[#FCF8F1] text-[#292321] hover:bg-[#EBDCC5]/40'
+            }`}
+          >
+            {isSilverOnly ? 'All Silver Categories' : 'All Gold Categories'}
+          </button>
+          {displayCategories.map((cat) => (
             <button
-              onClick={() => setActiveCategory('all')}
+              key={cat.id}
+              onClick={() => setActiveCategory(cat.slug)}
               className={`px-4 py-2 rounded-lg font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                activeCategory === 'all'
+                activeCategory === cat.slug
                   ? 'bg-[#8F171B] text-white shadow-xs'
                   : 'bg-[#FCF8F1] text-[#292321] hover:bg-[#EBDCC5]/40'
               }`}
             >
-              All Gold Categories
+              {cat.name}
             </button>
-            {categories.map((cat) => (
-              <button
-                key={cat.id}
-                onClick={() => setActiveCategory(cat.slug)}
-                className={`px-4 py-2 rounded-lg font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                  activeCategory === cat.slug
-                    ? 'bg-[#8F171B] text-white shadow-xs'
-                    : 'bg-[#FCF8F1] text-[#292321] hover:bg-[#EBDCC5]/40'
-                }`}
-              >
-                {cat.name}
-              </button>
-            ))}
-          </div>
-        )}
+          ))}
+        </div>
 
         {/* Search & Sort Row */}
         <div className="flex flex-col sm:flex-row justify-between items-center gap-3 pt-2 border-t border-gray-100">
