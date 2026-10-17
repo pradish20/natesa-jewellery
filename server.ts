@@ -365,7 +365,8 @@ CREATE TABLE IF NOT EXISTS categories (
   slug TEXT UNIQUE NOT NULL,
   description TEXT,
   banner_image_url TEXT,
-  display_order INT DEFAULT 0
+  display_order INT DEFAULT 0,
+  is_silver_only BOOLEAN DEFAULT false
 );
 
 -- Ensure columns exist even if table was created previously with an older schema
@@ -374,6 +375,7 @@ ALTER TABLE categories ADD COLUMN IF NOT EXISTS slug TEXT;
 ALTER TABLE categories ADD COLUMN IF NOT EXISTS description TEXT;
 ALTER TABLE categories ADD COLUMN IF NOT EXISTS banner_image_url TEXT;
 ALTER TABLE categories ADD COLUMN IF NOT EXISTS display_order INT DEFAULT 0;
+ALTER TABLE categories ADD COLUMN IF NOT EXISTS is_silver_only BOOLEAN DEFAULT false;
 
 -- 3. Products Table
 CREATE TABLE IF NOT EXISTS products (
@@ -1957,6 +1959,7 @@ app.post('/api/categories', requireAdminAuth, async (req: Request, res: Response
         slug: newCategory.slug,
         description: newCategory.description || '',
         banner_image_url: newCategory.banner_image_url || '',
+        is_silver_only: Boolean(newCategory.is_silver_only),
         display_order: Number(newCategory.display_order) || 0
       };
 
@@ -2017,6 +2020,7 @@ app.put('/api/categories/:id', requireAdminAuth, async (req: Request, res: Respo
         slug: updatedCategory.slug,
         description: updatedCategory.description || '',
         banner_image_url: updatedCategory.banner_image_url || '',
+        is_silver_only: Boolean(updatedCategory.is_silver_only),
         display_order: Number(updatedCategory.display_order) || 0
       };
 

@@ -1437,34 +1437,41 @@ export const AdminView: React.FC<AdminViewProps> = ({
                       />
                     </label>
                   </div>
-                  <div className="p-3.5 space-y-2">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h4 className="font-bold text-sm text-[#292321]">{cat.name}</h4>
-                        <span className="text-[10px] text-[#8F171B] font-mono">{cat.slug}</span>
+                    <div className="p-3.5 space-y-2">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <h4 className="font-bold text-sm text-[#292321]">{cat.name}</h4>
+                            {cat.is_silver_only && (
+                              <span className="bg-slate-800 text-slate-100 text-[9px] font-bold px-1.5 py-0.5 rounded border border-slate-600">
+                                🥈 92.5 Silver
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-[10px] text-[#8F171B] font-mono">{cat.slug}</span>
+                        </div>
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => {
+                              setEditingCategory(cat);
+                              setShowCategoryModal(true);
+                            }}
+                            className="p-1 text-blue-600 hover:bg-blue-50 rounded cursor-pointer"
+                            title="Edit Category"
+                          >
+                            <Edit className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteCategory(cat.id)}
+                            className="p-1 text-red-600 hover:bg-red-50 rounded cursor-pointer"
+                            title="Delete Category"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
-                      <div className="flex gap-1">
-                        <button
-                          onClick={() => {
-                            setEditingCategory(cat);
-                            setShowCategoryModal(true);
-                          }}
-                          className="p-1 text-blue-600 hover:bg-blue-50 rounded cursor-pointer"
-                          title="Edit Category"
-                        >
-                          <Edit className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteCategory(cat.id)}
-                          className="p-1 text-red-600 hover:bg-red-50 rounded cursor-pointer"
-                          title="Delete Category"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
+                      <p className="text-xs text-gray-500 line-clamp-2">{cat.description}</p>
                     </div>
-                    <p className="text-xs text-gray-500 line-clamp-2">{cat.description}</p>
-                  </div>
                 </div>
               </div>
             ))}
@@ -2691,12 +2698,31 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   <label className="block font-bold uppercase mb-1">Metal Type *</label>
                   <select
                     value={editingProduct.metal_type || '22k_gold'}
-                    onChange={(e) => setEditingProduct({ ...editingProduct, metal_type: e.target.value as any })}
-                    className="w-full bg-white border border-[#D4AF37]/50 rounded-xl px-3 py-2 font-semibold"
+                    onChange={(e) => {
+                      const selectedMetal = e.target.value as any;
+                      let suggestedHallmark = editingProduct.purity_hallmark;
+                      if (selectedMetal === '925_silver') {
+                        suggestedHallmark = '92.5 Sterling Silver Certified';
+                      } else if (selectedMetal === '22k_gold' && (!suggestedHallmark || suggestedHallmark.includes('92.5'))) {
+                        suggestedHallmark = 'BIS 916 22K Hallmarked';
+                      } else if (selectedMetal === '24k_gold' && (!suggestedHallmark || suggestedHallmark.includes('92.5'))) {
+                        suggestedHallmark = 'BIS 999 24K Hallmarked';
+                      }
+                      setEditingProduct({
+                        ...editingProduct,
+                        metal_type: selectedMetal,
+                        purity_hallmark: suggestedHallmark
+                      });
+                    }}
+                    className={`w-full border rounded-xl px-3 py-2 font-bold text-xs ${
+                      editingProduct.metal_type === '925_silver'
+                        ? 'bg-slate-100 border-slate-400 text-slate-900'
+                        : 'bg-white border-[#D4AF37]/50 text-[#292321]'
+                    }`}
                   >
-                    <option value="22k_gold">22K Gold</option>
-                    <option value="24k_gold">24K Gold</option>
-                    <option value="925_silver">92.5 Sterling Silver</option>
+                    <option value="22k_gold">✨ 22K Gold (BIS 916)</option>
+                    <option value="24k_gold">✨ 24K Gold (BIS 999)</option>
+                    <option value="925_silver">🥈 92.5 Sterling Silver</option>
                   </select>
                 </div>
               </div>
@@ -2852,6 +2878,47 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   onChange={(e) => setEditingCategory({ ...editingCategory, description: e.target.value })}
                   className="w-full bg-white border border-[#D4AF37]/50 rounded-xl px-3 py-2"
                 />
+              </div>
+
+              {/* Metal Category Type Selector (Silver vs Gold) */}
+              <div className="bg-white/80 p-3 rounded-xl border border-[#D4AF37]/40 space-y-2">
+                <label className="block font-bold text-[#8F171B] uppercase text-[11px]">Category Metal Type *</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <label className={`flex items-center gap-2 p-2 rounded-xl border cursor-pointer transition-all ${
+                    !editingCategory.is_silver_only
+                      ? 'bg-[#FCF8F1] border-[#8F171B] font-bold text-[#8F171B]'
+                      : 'bg-white border-gray-200 text-gray-700'
+                  }`}>
+                    <input
+                      type="radio"
+                      name="cat_metal_type"
+                      checked={!editingCategory.is_silver_only}
+                      onChange={() => setEditingCategory({ ...editingCategory, is_silver_only: false })}
+                      className="accent-[#8F171B]"
+                    />
+                    <span>✨ Gold & General</span>
+                  </label>
+
+                  <label className={`flex items-center gap-2 p-2 rounded-xl border cursor-pointer transition-all ${
+                    editingCategory.is_silver_only
+                      ? 'bg-slate-100 border-slate-600 font-bold text-slate-800'
+                      : 'bg-white border-gray-200 text-gray-700'
+                  }`}>
+                    <input
+                      type="radio"
+                      name="cat_metal_type"
+                      checked={Boolean(editingCategory.is_silver_only)}
+                      onChange={() => setEditingCategory({ ...editingCategory, is_silver_only: true })}
+                      className="accent-slate-700"
+                    />
+                    <span>🥈 92.5 Silver Only</span>
+                  </label>
+                </div>
+                <span className="text-[10px] text-gray-500 block">
+                  {editingCategory.is_silver_only
+                    ? 'Silver categories display in the 92.5 Sterling Silver collection & auto-saves to Supabase.'
+                    : 'Standard categories use 22K/24K Gold rates & auto-saves to Supabase.'}
+                </span>
               </div>
 
               <div>
