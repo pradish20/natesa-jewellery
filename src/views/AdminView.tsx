@@ -255,7 +255,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [showSetupGuide, setShowSetupGuide] = useState<boolean>(false);
 
   // Active Admin Tab
-  const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'categories' | 'slides' | 'store_contact' | 'orders' | 'rates' | 'supabase' | 'cloudinary' | 'password-reset'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'categories' | 'slides' | 'store_contact' | 'contact' | 'orders' | 'rates' | 'supabase' | 'cloudinary' | 'password-reset'>('overview');
 
   // Featured Slides State
   const [slidesList, setSlidesList] = useState<FeaturedSlide[]>(slides || INITIAL_FEATURED_SLIDES);
@@ -728,7 +728,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
     }
   };
 
-  // Store Contact Settings Handler
+  // Store Contact & Address Settings Handler
   const handleSaveStoreContact = async (e: React.FormEvent) => {
     e.preventDefault();
     setContactSaving(true);
@@ -736,9 +736,12 @@ export const AdminView: React.FC<AdminViewProps> = ({
     try {
       const res = await api.updateStoreContact(contactForm);
       if (res.success) {
-        setContactSaveMsg({ type: 'success', text: 'Store address & phone numbers successfully updated across the website!' });
-        onRefreshData();
-        setTimeout(() => setContactSaveMsg(null), 5000);
+        setContactSaveMsg({
+          type: 'success',
+          text: `Store address & phone numbers updated successfully ${res.saved_in_supabase ? 'and stored in Supabase shop_details table' : 'across the website'}!`
+        });
+        await onRefreshData();
+        setTimeout(() => setContactSaveMsg(null), 6000);
       }
     } catch (err: any) {
       setContactSaveMsg({ type: 'error', text: err.message || 'Failed to save store contact details.' });
@@ -1194,6 +1197,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
           { id: 'products', label: 'Products Manager', icon: Package },
           { id: 'categories', label: 'Categories Manager', icon: Folders },
           { id: 'slides', label: 'Banner Preview Photos', icon: ImageIcon },
+          { id: 'contact', label: 'Store Address & Contact', icon: MapPin },
           { id: 'rates', label: 'Live Rates', icon: Settings },
           { id: 'supabase', label: 'Supabase & Database', icon: Database },
           { id: 'cloudinary', label: 'Cloudinary CDN', icon: Cloud },
@@ -1285,6 +1289,31 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 <span>Add Banner Preview Photo</span>
               </button>
             </div>
+          </div>
+
+          {/* Quick Action Bar for Store Address & Phone Numbers */}
+          <div className="bg-white p-5 rounded-2xl border border-[#D4AF37]/40 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-[#8F171B] text-[#D4AF37] rounded-xl shadow-xs shrink-0">
+                <MapPin className="w-6 h-6" />
+              </div>
+              <div>
+                <h4 className="font-serif text-base sm:text-lg font-bold text-[#292321]">
+                  Store Address & Phone Numbers
+                </h4>
+                <p className="text-xs text-gray-500">
+                  {contactForm.main_branch_address ? `${contactForm.main_branch_address.substring(0, 65)}...` : 'Manage showroom addresses and phone numbers in Supabase shop_details table.'}
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setActiveTab('contact' as any)}
+              className="bg-[#8F171B] hover:bg-[#580E11] text-white px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 shadow-xs cursor-pointer transition-colors border border-[#D4AF37]/40 shrink-0"
+            >
+              <MapPin className="w-4 h-4 text-[#D4AF37]" />
+              <span>Change Address & Phone Numbers →</span>
+            </button>
           </div>
         </div>
       )}
@@ -1542,6 +1571,214 @@ export const AdminView: React.FC<AdminViewProps> = ({
       )}
 
 
+
+      {/* TAB: STORE ADDRESS & PHONE NUMBERS MANAGER */}
+      {activeTab === 'contact' && (
+        <div className="space-y-6 animate-in fade-in duration-200 w-full max-w-4xl">
+          <div className="bg-white p-5 sm:p-6 rounded-2xl border-2 border-[#D4AF37]/50 shadow-md space-y-5">
+            
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-[#D4AF37]/20 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-[#8F171B] text-[#D4AF37] rounded-xl shadow-xs shrink-0">
+                  <MapPin className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-serif text-lg sm:text-xl font-bold text-[#292321]">
+                    Store Address, Phone Numbers & Contact Details
+                  </h3>
+                  <p className="text-xs text-gray-500">
+                    Update store locations, phone numbers, WhatsApp, and hours. Data is persisted in Supabase table <code className="text-[#8F171B] font-mono font-bold bg-red-50 px-1.5 py-0.5 rounded">shop_details</code>.
+                  </p>
+                </div>
+              </div>
+
+              <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-[#8F171B]/10 text-[#8F171B] border border-[#8F171B]/30 flex items-center gap-1.5 shrink-0">
+                <Database className="w-3.5 h-3.5 text-[#D4AF37]" />
+                <span>Supabase shop_details</span>
+              </span>
+            </div>
+
+            {contactSaveMsg && (
+              <div className={`p-4 rounded-xl text-xs font-semibold flex items-center gap-2.5 ${
+                contactSaveMsg.type === 'error'
+                  ? 'bg-red-50 text-red-800 border border-red-200'
+                  : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+              }`}>
+                {contactSaveMsg.type === 'error' ? (
+                  <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                ) : (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                )}
+                <span className="leading-relaxed">{contactSaveMsg.text}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveStoreContact} className="space-y-4 text-xs">
+              
+              {/* Addresses Section */}
+              <div className="bg-[#FCF8F1] p-4 rounded-xl border border-[#D4AF37]/30 space-y-3">
+                <h4 className="font-serif text-sm font-bold text-[#8F171B] uppercase tracking-wider flex items-center gap-1.5">
+                  <MapPin className="w-4 h-4 text-[#D4AF37]" /> Showroom Addresses
+                </h4>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-bold text-[#292321] uppercase mb-1">
+                      Main Branch Address *
+                    </label>
+                    <textarea
+                      rows={3}
+                      required
+                      placeholder="e.g. 142, Netaji Road, Erode, Tamil Nadu 638001"
+                      value={contactForm.main_branch_address || ''}
+                      onChange={(e) => setContactForm({ ...contactForm, main_branch_address: e.target.value })}
+                      className="w-full bg-white border border-[#D4AF37]/50 rounded-xl p-2.5 font-medium text-xs leading-relaxed"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-[#292321] uppercase mb-1">
+                      Second Branch / Showroom Address
+                    </label>
+                    <textarea
+                      rows={3}
+                      placeholder="e.g. 88, Perundurai Road, Erode, Tamil Nadu 638011"
+                      value={contactForm.second_branch_address || ''}
+                      onChange={(e) => setContactForm({ ...contactForm, second_branch_address: e.target.value })}
+                      className="w-full bg-white border border-[#D4AF37]/50 rounded-xl p-2.5 font-medium text-xs leading-relaxed"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Phone Numbers & Email Section */}
+              <div className="bg-[#FCF8F1] p-4 rounded-xl border border-[#D4AF37]/30 space-y-3">
+                <h4 className="font-serif text-sm font-bold text-[#8F171B] uppercase tracking-wider flex items-center gap-1.5">
+                  <Phone className="w-4 h-4 text-[#D4AF37]" /> Contact Phone Numbers & Email
+                </h4>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block font-bold text-[#292321] uppercase mb-1">
+                      Primary Phone Number *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="+91 94432 53072"
+                      value={contactForm.phone_primary || ''}
+                      onChange={(e) => setContactForm({ ...contactForm, phone_primary: e.target.value })}
+                      className="w-full bg-white border border-[#D4AF37]/50 rounded-xl px-3 py-2 font-mono text-xs font-semibold"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-[#292321] uppercase mb-1">
+                      Secondary / Landline Phone
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="+91 424 2253072"
+                      value={contactForm.phone_secondary || ''}
+                      onChange={(e) => setContactForm({ ...contactForm, phone_secondary: e.target.value })}
+                      className="w-full bg-white border border-[#D4AF37]/50 rounded-xl px-3 py-2 font-mono text-xs font-semibold"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-[#292321] uppercase mb-1">
+                      WhatsApp Business Number *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="+91 94432 53072"
+                      value={contactForm.phone_whatsapp || ''}
+                      onChange={(e) => setContactForm({ ...contactForm, phone_whatsapp: e.target.value })}
+                      className="w-full bg-white border border-[#D4AF37]/50 rounded-xl px-3 py-2 font-mono text-xs font-semibold"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2 md:col-span-3">
+                    <label className="block font-bold text-[#292321] uppercase mb-1">
+                      Store Email Address *
+                    </label>
+                    <input
+                      type="email"
+                      required
+                      placeholder="natesajewellery@gmail.com"
+                      value={contactForm.email || ''}
+                      onChange={(e) => setContactForm({ ...contactForm, email: e.target.value })}
+                      className="w-full bg-white border border-[#D4AF37]/50 rounded-xl px-3 py-2 font-semibold text-xs"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Hours & Announcement Text */}
+              <div className="bg-[#FCF8F1] p-4 rounded-xl border border-[#D4AF37]/30 space-y-3">
+                <h4 className="font-serif text-sm font-bold text-[#8F171B] uppercase tracking-wider flex items-center gap-1.5">
+                  <Clock className="w-4 h-4 text-[#D4AF37]" /> Operating Hours & Storefront Announcement
+                </h4>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-bold text-[#292321] uppercase mb-1">
+                      Showroom Opening Hours
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Mon - Sat: 9:30 AM - 9:00 PM | Sun: 10:00 AM - 8:30 PM"
+                      value={contactForm.opening_hours || ''}
+                      onChange={(e) => setContactForm({ ...contactForm, opening_hours: e.target.value })}
+                      className="w-full bg-white border border-[#D4AF37]/50 rounded-xl px-3 py-2 text-xs font-medium"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-[#292321] uppercase mb-1">
+                      Storefront Top Announcement Bar
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="BIS 916 Hallmarked Gold & 92.5 Silver. Free Express Insured Shipping across India."
+                      value={contactForm.announcement_text || ''}
+                      onChange={(e) => setContactForm({ ...contactForm, announcement_text: e.target.value })}
+                      className="w-full bg-white border border-[#D4AF37]/50 rounded-xl px-3 py-2 text-xs font-medium"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Submit Button */}
+              <button
+                type="submit"
+                disabled={contactSaving}
+                className="w-full bg-[#8F171B] hover:bg-[#580E11] text-white py-3 rounded-xl font-bold text-sm transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 border border-[#D4AF37]/50"
+              >
+                {contactSaving ? (
+                  <RefreshCw className="w-4 h-4 animate-spin text-[#D4AF37]" />
+                ) : (
+                  <MapPin className="w-4 h-4 text-[#D4AF37]" />
+                )}
+                <span>{contactSaving ? 'Saving to Supabase...' : 'Save Address & Phone Numbers to Supabase'}</span>
+              </button>
+            </form>
+
+            {/* Live Preview Box */}
+            <div className="mt-4 p-4 bg-[#292321] text-[#FCF8F1] rounded-xl border border-[#D4AF37]/40 space-y-2">
+              <span className="text-[10px] uppercase font-bold text-[#D4AF37] tracking-widest block">Live Storefront Header / Footer Preview</span>
+              <div className="text-xs space-y-1 text-gray-300">
+                <p>📍 <strong>Main Branch:</strong> {contactForm.main_branch_address || '142, Netaji Road, Erode, Tamil Nadu 638001'}</p>
+                <p>📞 <strong>Phone:</strong> {contactForm.phone_primary} {contactForm.phone_secondary ? `| ${contactForm.phone_secondary}` : ''}</p>
+                <p>💬 <strong>WhatsApp Order:</strong> {contactForm.phone_whatsapp}</p>
+                <p>✉️ <strong>Email:</strong> {contactForm.email}</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
 
       {/* TAB 5: LIVE RATES */}
       {activeTab === 'rates' && (

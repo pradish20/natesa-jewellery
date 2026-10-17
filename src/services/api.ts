@@ -227,7 +227,7 @@ export const api = {
   // Store Contact & Address Settings
   getStoreContact: (): Promise<StoreContactSettings> => fetchJSON<StoreContactSettings>('/api/store-contact'),
 
-  updateStoreContact: (contact: Partial<StoreContactSettings>): Promise<{ success: boolean; contact: StoreContactSettings }> =>
+  updateStoreContact: (contact: Partial<StoreContactSettings>): Promise<{ success: boolean; contact: StoreContactSettings; saved_in_supabase?: boolean }> =>
     fetchJSON('/api/store-contact', {
       method: 'PUT',
       body: JSON.stringify(contact)

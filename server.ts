@@ -2353,18 +2353,82 @@ app.delete('/api/slides/:id', async (req: Request, res: Response) => {
 });
 
 // ---------------- STORE CONTACT & ADDRESS SETTINGS ROUTES ----------------
-app.get('/api/store-contact', (req: Request, res: Response) => {
+app.get('/api/store-contact', async (req: Request, res: Response) => {
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('shop_details')
+        .select('*')
+        .eq('id', 'store_contact')
+        .maybeSingle();
+
+      if (!error && data) {
+        currentStoreContact = {
+          phone_primary: data.phone_primary || currentStoreContact.phone_primary,
+          phone_secondary: data.phone_secondary || currentStoreContact.phone_secondary,
+          phone_whatsapp: data.phone_whatsapp || currentStoreContact.phone_whatsapp,
+          email: data.email || currentStoreContact.email,
+          main_branch_address: data.main_branch_address || currentStoreContact.main_branch_address,
+          second_branch_address: data.second_branch_address || currentStoreContact.second_branch_address,
+          opening_hours: data.opening_hours || currentStoreContact.opening_hours,
+          announcement_text: data.announcement_text || currentStoreContact.announcement_text
+        };
+      }
+    } catch (e) {
+      console.warn('Supabase shop_details fetch error:', e);
+    }
+  }
   res.json(currentStoreContact);
 });
 
-app.put('/api/store-contact', (req: Request, res: Response) => {
+app.put('/api/store-contact', requireAdminAuth, async (req: Request, res: Response) => {
   const updated: StoreContactSettings = {
     ...currentStoreContact,
     ...req.body
   };
   currentStoreContact = updated;
   saveStoreContact(updated);
-  res.json({ success: true, contact: updated });
+
+  let savedInSupabase = false;
+  let supabaseErrMsg = '';
+
+  if (supabase) {
+    try {
+      const shopRecord = {
+        id: 'store_contact',
+        phone_primary: updated.phone_primary,
+        phone_secondary: updated.phone_secondary,
+        phone_whatsapp: updated.phone_whatsapp,
+        email: updated.email,
+        main_branch_address: updated.main_branch_address,
+        second_branch_address: updated.second_branch_address,
+        opening_hours: updated.opening_hours,
+        announcement_text: updated.announcement_text,
+        updated_at: new Date().toISOString()
+      };
+
+      const { error } = await supabase
+        .from('shop_details')
+        .upsert([shopRecord], { onConflict: 'id' });
+
+      if (!error) {
+        savedInSupabase = true;
+      } else {
+        supabaseErrMsg = error.message;
+        console.warn('Supabase shop_details update warning:', error.message);
+      }
+    } catch (e: any) {
+      supabaseErrMsg = e?.message || String(e);
+      console.error('Supabase shop_details update exception:', supabaseErrMsg);
+    }
+  }
+
+  res.json({
+    success: true,
+    contact: updated,
+    saved_in_supabase: savedInSupabase,
+    supabase_error: supabaseErrMsg || undefined
+  });
 });
 
 // ---------------- VITE / STATIC SERVING ----------------
