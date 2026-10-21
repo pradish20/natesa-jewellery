@@ -973,6 +973,17 @@ export const AdminView: React.FC<AdminViewProps> = ({
     }
   };
 
+  // Direct Category Card Banner Clear
+  const handleClearCategoryCardBanner = async (cat: Category) => {
+    if (!window.confirm(`Clear banner photo for category "${cat.name}"?`)) return;
+    try {
+      await api.updateCategory(cat.id, { banner_image_url: '' });
+      await onRefreshData();
+    } catch (err: any) {
+      alert('Failed to clear category banner photo: ' + err.message);
+    }
+  };
+
   // File Upload
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, target: 'product' | 'category') => {
     const file = e.target.files?.[0];
@@ -1840,19 +1851,32 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 <div>
                   <div className="relative w-full h-36 bg-gray-900 overflow-hidden group">
                     <img src={cat.banner_image_url} alt={cat.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                    <label className="absolute bottom-2 right-2 bg-black/80 hover:bg-black text-[#D4AF37] px-2.5 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1.5 cursor-pointer shadow-md border border-[#D4AF37]/40 backdrop-blur-xs transition-colors">
-                      {imageUploadLoading ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
-                      <span>{imageUploadLoading ? 'Uploading...' : 'Upload Banner Photo'}</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) handleCategoryCardBannerUpload(cat, file);
-                        }}
-                      />
-                    </label>
+                    <div className="absolute bottom-2 right-2 flex items-center gap-1.5">
+                      {cat.banner_image_url && (
+                        <button
+                          type="button"
+                          onClick={() => handleClearCategoryCardBanner(cat)}
+                          className="bg-red-600/90 hover:bg-red-700 text-white px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 shadow-md border border-red-400/40 backdrop-blur-xs transition-colors cursor-pointer"
+                          title="Delete category banner photo"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          <span>Clear Photo</span>
+                        </button>
+                      )}
+                      <label className="bg-black/80 hover:bg-black text-[#D4AF37] px-2.5 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1.5 cursor-pointer shadow-md border border-[#D4AF37]/40 backdrop-blur-xs transition-colors">
+                        {imageUploadLoading ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
+                        <span>{imageUploadLoading ? 'Uploading...' : 'Upload Banner Photo'}</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) handleCategoryCardBannerUpload(cat, file);
+                          }}
+                        />
+                      </label>
+                    </div>
                   </div>
                     <div className="p-3.5 space-y-2">
                       <div className="flex justify-between items-start">
@@ -3030,9 +3054,20 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
             {testUploadResult && (
               <div className="mt-3 p-4 bg-emerald-50 border border-emerald-300 rounded-xl space-y-3">
-                <div className="flex items-center gap-2 text-emerald-800 text-xs font-bold">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  <span>Image Uploaded Successfully! Hosted on: {testUploadResult.cloud_name || 'Cloudinary'}</span>
+                <div className="flex items-center justify-between gap-2 text-emerald-800 text-xs font-bold">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    <span>Image Uploaded Successfully! Hosted on: {testUploadResult.cloud_name || 'Cloudinary'}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setTestUploadResult(null)}
+                    className="bg-red-600 hover:bg-red-700 text-white text-[11px] font-bold px-2 py-1 rounded-lg flex items-center gap-1 cursor-pointer transition-colors shrink-0 shadow-xs"
+                    title="Delete preview image"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Delete Preview</span>
+                  </button>
                 </div>
 
                 <div className="flex flex-col sm:flex-row items-center gap-4">
@@ -3213,10 +3248,31 @@ export const AdminView: React.FC<AdminViewProps> = ({
                     </span>
                   )}
                 </div>
-                {editingProduct.image_url?.includes('cloudinary.com') && (
-                  <span className="text-[10px] text-emerald-700 font-semibold block mt-1">
-                    ✓ Hosted on Cloudinary CDN
-                  </span>
+
+                {editingProduct.image_url && (
+                  <div className="mt-2.5 p-2 bg-gray-900 border border-[#D4AF37]/40 rounded-xl flex items-center justify-between gap-3">
+                    <img
+                      src={editingProduct.image_url}
+                      alt="Product preview"
+                      className="w-16 h-16 object-cover rounded-lg border border-white/20 shrink-0"
+                    />
+                    <div className="flex-1 overflow-hidden text-left">
+                      <span className="text-[10px] uppercase font-bold text-[#D4AF37] block">Image Preview</span>
+                      <p className="text-[10px] text-gray-300 font-mono truncate">{editingProduct.image_url}</p>
+                      {editingProduct.image_url.includes('cloudinary.com') && (
+                        <span className="text-[10px] text-emerald-400 font-semibold block">✓ Hosted on Cloudinary CDN</span>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setEditingProduct({ ...editingProduct, image_url: '' })}
+                      className="bg-red-600 hover:bg-red-700 text-white text-[11px] font-bold px-2.5 py-1.5 rounded-lg flex items-center gap-1 shadow-md cursor-pointer transition-colors shrink-0"
+                      title="Delete preview image"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Delete Image</span>
+                    </button>
+                  </div>
                 )}
               </div>
 
@@ -3361,10 +3417,30 @@ export const AdminView: React.FC<AdminViewProps> = ({
                     </span>
                   )}
                 </div>
-                {editingCategory.banner_image_url?.includes('cloudinary.com') && (
-                  <span className="text-[10px] text-emerald-700 font-semibold block mt-1">
-                    ✓ Hosted on Cloudinary CDN
-                  </span>
+                {editingCategory.banner_image_url && (
+                  <div className="mt-2.5 p-2 bg-gray-900 border border-[#D4AF37]/40 rounded-xl flex items-center justify-between gap-3">
+                    <img
+                      src={editingCategory.banner_image_url}
+                      alt="Category banner preview"
+                      className="w-16 h-16 object-cover rounded-lg border border-white/20 shrink-0"
+                    />
+                    <div className="flex-1 overflow-hidden text-left">
+                      <span className="text-[10px] uppercase font-bold text-[#D4AF37] block">Banner Image Preview</span>
+                      <p className="text-[10px] text-gray-300 font-mono truncate">{editingCategory.banner_image_url}</p>
+                      {editingCategory.banner_image_url.includes('cloudinary.com') && (
+                        <span className="text-[10px] text-emerald-400 font-semibold block">✓ Hosted on Cloudinary CDN</span>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setEditingCategory({ ...editingCategory, banner_image_url: '' })}
+                      className="bg-red-600 hover:bg-red-700 text-white text-[11px] font-bold px-2.5 py-1.5 rounded-lg flex items-center gap-1 shadow-md cursor-pointer transition-colors shrink-0"
+                      title="Delete preview image"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Delete Image</span>
+                    </button>
+                  </div>
                 )}
               </div>
 
@@ -3511,12 +3587,27 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   </label>
                 </div>
                 {editingSlide.image_url && (
-                  <div className="mt-2 relative w-full h-32 rounded-xl overflow-hidden border border-[#D4AF37]/40 bg-gray-900">
+                  <div className="mt-2 relative w-full h-32 rounded-xl overflow-hidden border border-[#D4AF37]/40 bg-gray-900 group">
                     <img
                       src={editingSlide.image_url}
                       alt="Slide preview"
                       className="w-full h-full object-cover"
                     />
+                    <div className="absolute inset-0 bg-black/50 flex items-center justify-between p-3">
+                      <div className="text-left overflow-hidden">
+                        <span className="text-[10px] uppercase font-bold text-[#D4AF37] block">Slide Banner Preview</span>
+                        <p className="text-[10px] text-gray-200 font-mono truncate max-w-[220px]">{editingSlide.image_url}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setEditingSlide({ ...editingSlide, image_url: '' })}
+                        className="bg-red-600 hover:bg-red-700 text-white text-[11px] font-bold px-2.5 py-1.5 rounded-lg flex items-center gap-1 shadow-md cursor-pointer transition-colors shrink-0"
+                        title="Delete preview image"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Delete Image</span>
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
